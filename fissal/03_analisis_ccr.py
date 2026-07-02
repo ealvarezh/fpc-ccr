@@ -3,7 +3,7 @@ import numpy as np
 import sys
 import gc
 from pathlib import Path
-
+pd.set_option('display.max_columns', None)
 SILVER = Path(r"C:\Users\eah\apoyoconsultoria.com\File Server - Analytics\7 Datos\Datos abiertos\fissal\01_silver")
 ARCHIVO = SILVER / "FISSAL_CANCER_COLORRECTAL_2016_2022.parquet"
 

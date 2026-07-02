@@ -47,12 +47,95 @@ def procesar_ubigeo(df):
     return df
 
 
+# =====================================================================
+# CORRECCION DE OUTLIERS DE CANTIDAD (ATE_CANTBRUTA)
+# =====================================================================
+# Hallazgo (ver fissal/hitos_paciente/README.md): algunos registros de
+# HOSPITAL NACIONAL DANIEL ALCIDES CARRION tienen una cantidad facturada
+# absurda para el item (p.ej. 1,112,500 unidades de una "recarga para
+# grapadora quirurgica" cuando ese mismo item normalmente se factura de a 1,
+# o 1,531 "mascarillas oronasales" cuando lo normal es 1). El precio
+# unitario (ATE_PRECIO) en esos registros es realista -- el error esta en
+# la CANTIDAD, probablemente un digito de mas al capturar el dato. Se
+# corrige comparando cada registro contra la mediana historica de cantidad
+# de ESE MISMO item (ATE_CODCONSUMO) en TODOS los anios (algunos items
+# aparecen pocas veces en un solo anio, por eso la referencia es global).
+
+FACTOR_OUTLIER_CANTIDAD = 1000  # cantidad > 1000x la mediana del item = sospechoso
+MIN_MUESTRAS_REFERENCIA = 5     # minimo de registros historicos del item para confiar en su mediana
+
+
+def calcular_referencia_cantidad(anios, carpeta_bronce):
+    """Pasada liviana (solo 2 columnas) sobre todos los anios crudos para
+    obtener la mediana de ATE_CANTBRUTA por item (ATE_CODCONSUMO), usada
+    como referencia para detectar outliers de cantidad."""
+    partes = []
+    for yr in anios:
+        archivo = carpeta_bronce / f"FISSAL_PRESTACIONES_{yr}.parquet"
+        if not archivo.exists():
+            continue
+        partes.append(pd.read_parquet(archivo, columns=["ATE_CODCONSUMO", "ATE_CANTBRUTA"]))
+    todo = pd.concat(partes, ignore_index=True)
+    ref = todo.groupby("ATE_CODCONSUMO")["ATE_CANTBRUTA"].agg(MEDIANA_CANT_REF="median", N_ITEM_REF="count")
+    return ref
+
+
+def corregir_outliers_cantidad(df, ref):
+    """Si ATE_CANTBRUTA de un registro supera FACTOR_OUTLIER_CANTIDAD veces
+    la mediana historica de su item, se reescala TODA la fila (cantidad
+    bruta/neta y monto bruto/neto) por el mismo factor, preservando el
+    precio unitario y la relacion bruto/neto original. Items sin suficiente
+    historial (< MIN_MUESTRAS_REFERENCIA) no se tocan."""
+    faltantes = {"ATE_CODCONSUMO", "ATE_CANTBRUTA", "ATE_CANTNETA", "ATE_MONTOBRUTO", "ATE_MONTONETO"} - set(df.columns)
+    if faltantes:
+        return df
+
+    df = df.merge(ref, left_on="ATE_CODCONSUMO", right_index=True, how="left")
+    mask = (
+        (df["N_ITEM_REF"] >= MIN_MUESTRAS_REFERENCIA)
+        & (df["MEDIANA_CANT_REF"] > 0)
+        & (df["ATE_CANTBRUTA"] > df["MEDIANA_CANT_REF"] * FACTOR_OUTLIER_CANTIDAD)
+    )
+
+    n_outliers = int(mask.sum())
+    if n_outliers > 0:
+        monto_antes = df.loc[mask, "ATE_MONTONETO"].sum()
+        print(f"  [Calidad de datos] {n_outliers} registro(s) con ATE_CANTBRUTA > "
+              f"{FACTOR_OUTLIER_CANTIDAD}x la mediana historica de su item:")
+        for _, row in df.loc[mask, ["ATE_DESCCONSUMO", "ATE_CANTBRUTA", "MEDIANA_CANT_REF", "ATE_MONTONETO"]].iterrows():
+            desc = str(row["ATE_DESCCONSUMO"])[:55]
+            print(f"      {desc:<55s} | cant {row['ATE_CANTBRUTA']:>10,.0f} -> "
+                  f"{row['MEDIANA_CANT_REF']:>6,.0f} (mediana del item) | "
+                  f"monto S/{row['ATE_MONTONETO']:>14,.2f} se reescala")
+
+        factor = df.loc[mask, "MEDIANA_CANT_REF"] / df.loc[mask, "ATE_CANTBRUTA"]
+        for col in ["ATE_CANTBRUTA", "ATE_CANTNETA", "ATE_MONTOBRUTO", "ATE_MONTONETO"]:
+            if df[col].dtype.kind in "iu":  # entero -> pasar a float antes de reescalar
+                df[col] = df[col].astype(float)
+            df.loc[mask, col] = df.loc[mask, col] * factor
+
+        monto_despues = df.loc[mask, "ATE_MONTONETO"].sum()
+        print(f"      Monto neto de estos registros: S/{monto_antes:,.2f} -> S/{monto_despues:,.2f} "
+              f"(se descuenta S/{monto_antes - monto_despues:,.2f} del total facturado)")
+
+    return df.drop(columns=["MEDIANA_CANT_REF", "N_ITEM_REF"])
+
+
 def agregar_columnas_derivadas(df):
     mask_edad = df["ATE_FECATENCION"].notna() & df["ATE_FECNAC"].notna()
     df["EDAD"] = pd.NA
     if mask_edad.any():
         dias = (df.loc[mask_edad, "ATE_FECATENCION"] - df.loc[mask_edad, "ATE_FECNAC"]).dt.days
-        df.loc[mask_edad, "EDAD"] = (dias / 365.25).astype(int)
+        edad_calc = (dias / 365.25).astype(int)
+        # Filtrar outliers: edad negativa (fecha nacimiento > fecha atencion)
+        # o edad > 120 (fecha nacimiento claramente erronea). Este archivo cubre
+        # TODAS las enfermedades de FISSAL (no solo CCR), incluyendo patologias
+        # pediatricas reales, asi que aqui NO se acota la edad minima mas alla de
+        # 0 -- ese filtro clinico especifico de cancer colorrectal (edad < 10
+        # implausible para CCR) se aplica solo en 03_perfil_pacientes_ccr.py,
+        # sobre la poblacion ya filtrada a CCR.
+        edad_calc = edad_calc.where((edad_calc >= 0) & (edad_calc <= 120), other=pd.NA)
+        df.loc[mask_edad, "EDAD"] = edad_calc
 
     df["CAPITULO_CIE10"] = df["ATE_CODCIE10"].str[0]
 
@@ -104,6 +187,10 @@ print("=" * 60)
 print("PREPROCESAMIENTO FISSAL 2016-2022")
 print("=" * 60)
 
+print("\nCalculando referencia de cantidad por item (pasada liviana, todos los anios)...")
+REF_CANTIDAD = calcular_referencia_cantidad(ANIOS, BRONCE)
+print(f"  Items distintos (ATE_CODCONSUMO): {len(REF_CANTIDAD):,}")
+
 lista_pacientes = []
 
 for yr in ANIOS:
@@ -116,6 +203,7 @@ for yr in ANIOS:
     df = limpiar_nan_strings(df)
     df = procesar_fechas(df)
     df = procesar_ubigeo(df)
+    df = corregir_outliers_cantidad(df, REF_CANTIDAD)
     df = agregar_columnas_derivadas(df)
 
     salida = SILVER / f"FISSAL_PRESTACIONES_{yr}.parquet"
