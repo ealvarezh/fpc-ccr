@@ -69,10 +69,10 @@ pac["EDAD_PRIMERA_ATENCION"] = np.floor(
 # o < 10 anios casi siempre reflejan un error de captura de ATE_FECNAC o de
 # codificacion CIE-10, no un caso real. Se marcan como no confiables (NA) en
 # vez de eliminar al paciente, para no perder el resto de su informacion.
-n_edad_invalida = ((pac["EDAD_PRIMERA_ATENCION"] < 10) | (pac["EDAD_PRIMERA_ATENCION"] > 120)).sum()
+n_edad_invalida = ((pac["EDAD_PRIMERA_ATENCION"] < 10) | (pac["EDAD_PRIMERA_ATENCION"] > 100)).sum()
 print(f"\n[Calidad de datos] Pacientes con EDAD_PRIMERA_ATENCION no confiable "
       f"(<10 o >120 anios, ver README): {n_edad_invalida:,} -> se marcan como NA")
-pac.loc[(pac["EDAD_PRIMERA_ATENCION"] < 10) | (pac["EDAD_PRIMERA_ATENCION"] > 120), "EDAD_PRIMERA_ATENCION"] = pd.NA
+pac.loc[(pac["EDAD_PRIMERA_ATENCION"] < 10) | (pac["EDAD_PRIMERA_ATENCION"] > 100), "EDAD_PRIMERA_ATENCION"] = pd.NA
 pac["TIEMPO_EN_SISTEMA_DIAS"] = (pac["ULTIMA_ATENCION"] - pac["PRIMERA_ATENCION"]).dt.days
 pac["SUPERVIVENCIA_DIAS"] = np.where(
     pac["FALLECIDO"],

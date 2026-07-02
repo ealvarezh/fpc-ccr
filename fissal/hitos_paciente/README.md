@@ -138,12 +138,25 @@ la actividad del paciente en el sistema de salud. Variables de apoyo:
 `TIPO_RETORNO_TRAS_BRECHA` (ACTIVO/CONTROL), `FECHA_RETORNO_TRAS_BRECHA`,
 `DIAS_BRECHA_PREVIA_RETORNO`.
 
-Resultado observado (con datos previos a la correccion de outliers de
-cantidad, ver seccion de calidad de datos): la gran mayoria de las pausas
-largas resultan ser el final de la historia del paciente en FISSAL
-(`POSIBLE_REMISION_O_ALTA`); los casos de `RECAIDA_PROBABLE` y
-`CONTROL_POST_PAUSA` son una minoria pero identifican concretamente a los
-pacientes que "se fueron y volvieron" — utiles para revisar caso por caso.
+Resultado observado (ya con la correccion de outliers de cantidad aplicada,
+ver seccion de calidad de datos):
+
+| Categoria | n | % |
+|-----------|---|---|
+| `POSIBLE_REMISION_O_ALTA` | 7,989 | 50.9% |
+| `EN_SEGUIMIENTO_ACTIVO` | 4,538 | 28.9% |
+| `FALLECIDO` | 2,390 | 15.2% |
+| `CONTROL_POST_PAUSA` | 663 | 4.2% |
+| `RECAIDA_PROBABLE` | 99 | 0.6% |
+| `PALIATIVO` | 19 | 0.1% |
+
+La gran mayoria de las pausas largas resultan ser el final de la historia
+del paciente en FISSAL; los 762 casos de `RECAIDA_PROBABLE` + `CONTROL_POST_PAUSA`
+son una minoria pero identifican concretamente a los pacientes que "se
+fueron y volvieron" — utiles para revisar caso por caso. Dato de contraste:
+los `RECAIDA_PROBABLE` tienen la tasa de hospitalizacion mas alta de todos
+los grupos de desenlace (65.7%, vs. 26-43% en el resto), consistente con
+que su regreso implico atencion mas intensiva.
 
 ---
 
@@ -151,8 +164,9 @@ pacientes que "se fueron y volvieron" — utiles para revisar caso por caso.
 
 | Archivo | Grano | Uso |
 |---------|-------|-----|
-| `FISSAL_CCR_HITOS_PACIENTE.parquet` | 1 fila/paciente (68 columnas) | Analisis cruzado, filtros, tablas |
+| `FISSAL_CCR_HITOS_PACIENTE.parquet` | 1 fila/paciente (71 columnas) | Analisis cruzado, filtros, tablas |
 | `FISSAL_CCR_HITOS_EVENTOS.parquet` | 1 fila/paciente x hito (formato largo) | Graficos comparativos entre hitos (timelines, boxplots de costo/duracion por hito) |
+| `03_output/hitos_paciente/*.csv` | Copia CSV de las 2 tablas anteriores | Importar a Power BI (generado por `04_exportar_powerbi.py`) |
 
 ---
 
@@ -184,10 +198,29 @@ Se uso una regla relativa por item (no un tope absoluto) porque items como
 miles (unidad de medida muy fina, precio unitario ~S/0.01) — un tope
 absoluto los habria corregido por error.
 
+**Resultado al correr sobre los 7 anios completos:** 415 registros
+corregidos, S/861.5 millones en montos absurdos reescalados a valores
+razonables. Los casos mas claros (cantidades con patron de "dedo pesado":
+digitos repetidos o miles/millones donde el item normalmente es 1-2
+unidades) incluyen un filtro de ventilador facturado en S/79,999,992 (3.3M
+unidades, mediana del item = 1), una pinza laparoscopica en S/31,640,625
+(5,625 unidades, mediana = 1), y 2 cateteres de hemodialisis en
+S/2,406,950 cada uno (1,610 unidades, mediana = 1) — ademas del caso ya
+descrito del Hospital Carrion. **La categoria menos certera es `OXIGENO
+MEDICINAL`** (253 de los 415 registros): su precio unitario varia mucho
+entre registros (de S/0.001 a S/10 por "unidad"), lo que sugiere que el
+item mezcla distintas unidades de medida bajo el mismo codigo — no hay
+forma de estar 100% seguro de cuales de esas correcciones son errores reales
+vs. uso legitimo de oxigeno muy prolongado. El impacto en soles de esa
+categoria especifica es comparativamente chico frente a los casos de arriba.
+Si se necesita mas precision, lo siguiente seria revisar `OXIGENO MEDICINAL`
+por separado (p.ej. exigir tambien que el precio unitario del item sea
+estable entre registros antes de confiar en su mediana de cantidad).
+
 ### Edades clinicamente implausibles para CCR
 
-Se encontraron 75 pacientes con `EDAD_PRIMERA_ATENCION` < 18 años, incluyendo
-7 con edad 0-3 años y 1 con edad negativa (fecha de nacimiento posterior a
+Se encontraron 75 pacientes con `EDAD_PRIMERA_ATENCION` < 18 años (incluyendo
+7 con edad 0-3 años y 1 con edad negativa, fecha de nacimiento posterior a
 la atencion). El cancer colorrectal en la primera infancia es
 practicamente inexistente en la literatura medica (los pocos casos
 pediatricos documentados son casi siempre ≥10 años, asociados a sindromes
@@ -197,14 +230,20 @@ hereditarios como poliposis adenomatosa familiar). Esto sugiere un error en
 **Correccion implementada** en `03_perfil_pacientes_ccr.py`: se extendio el
 filtro existente (que ya descartaba edades negativas o >120) para tambien
 marcar como no confiable (`NA`) cualquier `EDAD_PRIMERA_ATENCION` < 10 años
-**dentro de la poblacion CCR**. Este filtro clinico especifico de CCR NO se
-aplica en `01_procesar_fissal.py` (el campo `EDAD` generico de ahi cubre
-TODAS las enfermedades de FISSAL, incluyendo patologias pediatricas reales
-que no deben descartarse).
+**dentro de la poblacion CCR** (umbral deliberadamente conservador: 10 años,
+no 18, para no descartar los pocos casos adolescentes que si son plausibles
+segun la literatura). Resultado: 19 pacientes con edad <10 o >120 marcados
+como NA. Este filtro clinico especifico de CCR NO se aplica en
+`01_procesar_fissal.py` (el campo `EDAD` generico de ahi cubre TODAS las
+enfermedades de FISSAL, incluyendo patologias pediatricas reales que no
+deben descartarse).
 
-**Como leer los reportes:** los promedios (media) de costo en este modulo
-pueden seguir estando algo influenciados por otros outliers no detectados
-todavia — para lecturas rapidas, preferir siempre la **mediana**.
+**Como leer los reportes:** con las 2 correcciones aplicadas, el promedio
+(media) de costo dejo de estar dominado por outliers extremos — por ejemplo
+el costo neto medio de `POSIBLE_REMISION_O_ALTA` bajo de S/90,967 a
+S/3,443.57 (la mediana, en cambio, casi no se movio: S/219.98 -> S/213.59,
+confirmando que la mediana ya era confiable antes). Aun asi, para lecturas
+rapidas sigue siendo mas seguro citar la **mediana**.
 
 ---
 

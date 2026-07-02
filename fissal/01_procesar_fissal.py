@@ -134,7 +134,7 @@ def agregar_columnas_derivadas(df):
         # 0 -- ese filtro clinico especifico de cancer colorrectal (edad < 10
         # implausible para CCR) se aplica solo en 03_perfil_pacientes_ccr.py,
         # sobre la poblacion ya filtrada a CCR.
-        edad_calc = edad_calc.where((edad_calc >= 0) & (edad_calc <= 120), other=pd.NA)
+        edad_calc = edad_calc.where((edad_calc >= 0) & (edad_calc <= 100), other=pd.NA)
         df.loc[mask_edad, "EDAD"] = edad_calc
 
     df["CAPITULO_CIE10"] = df["ATE_CODCIE10"].str[0]

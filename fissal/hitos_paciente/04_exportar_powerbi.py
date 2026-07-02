@@ -28,7 +28,8 @@ ev = pd.read_parquet(SILVER / "FISSAL_CCR_HITOS_EVENTOS.parquet")
 
 # Columnas de fecha a formato ISO simple (Power BI las detecta solas)
 for df_ in (hp, ev):
-    for col in df_.select_dtypes(include=["datetime64[ns]", "datetime64[us]"]).columns:
+    cols_fecha = [c for c in df_.columns if pd.api.types.is_datetime64_any_dtype(df_[c])]
+    for col in cols_fecha:
         df_[col] = df_[col].dt.strftime("%Y-%m-%d")
 
 salida_pac = SALIDA / "hitos_paciente.csv"

@@ -42,7 +42,7 @@ perfil = pd.read_parquet(SILVER / "FISSAL_CCR_PERFIL_PACIENTES.parquet")
 perfil_amp = pd.read_parquet(SILVER / "FISSAL_CCR_PERFIL_PACIENTES_AMPLIADO.parquet")
 
 # ===== FILTRAR OUTLIERS DE EDAD =====
-perfil.loc[(perfil["EDAD_PRIMERA_ATENCION"] < 0) | (perfil["EDAD_PRIMERA_ATENCION"] > 120), "EDAD_PRIMERA_ATENCION"] = pd.NA
+perfil.loc[(perfil["EDAD_PRIMERA_ATENCION"] < 0) | (perfil["EDAD_PRIMERA_ATENCION"] > 100), "EDAD_PRIMERA_ATENCION"] = pd.NA
 
 # Cargar datos completos CCR para trayectoria clinica
 print("Cargando datos CCR para trayectoria clinica...")
@@ -197,7 +197,7 @@ add_kpi_card(slide, "Máxima", f"{edad.max():.0f} años", 9.8, 1.8, color=BAD)
 n_outliers = perfil["EDAD_PRIMERA_ATENCION"].isna().sum()
 add_text_box(slide, f"Registros con edad inválida (negativa o >120) excluidos: {n_outliers}", 0.5, 3.1, 6, 0.3, font_size=9, color=BAD)
 
-bins = [0, 18, 30, 40, 50, 60, 70, 80, 120]
+bins = [0, 18, 30, 40, 50, 60, 70, 80, 101]
 labels = ["0-17", "18-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80+"]
 temp_rango = pd.cut(edad, bins=bins, labels=labels, right=False)
 rango_counts = temp_rango.value_counts().sort_index()
