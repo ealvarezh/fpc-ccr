@@ -222,6 +222,55 @@ for cat, pat in PAT_TRAT.items():
     mask = df["ATE_DESCCONSUMO"].str.contains(pat, na=False)
     df.loc[mask, "CATEGORIA_TRAT"] = cat
 
+# --- Complemento: deteccion de tratamiento vía el diccionario categoria_recurso_502 ---
+# El regex de arriba solo mira texto libre y deja ~68% de los pacientes en
+# SIN_TRATAMIENTO_DETECTADO (ver README). El diccionario
+# `diccionario_ATE_DESCCONSUMO_502_estandarizado.xlsx` (hoja Diccionario_502) da una
+# clasificacion mas confiable de cada ATE_DESCCONSUMO, y detecta casos que el regex
+# no captura (p.ej. marcas comerciales de quimioterapicos no listadas, o procedimientos
+# de radioterapia sin la palabra "RADIOTER" en la descripcion). Se usa como señal
+# ADICIONAL (OR con el regex, nunca lo reemplaza): si el regex ya clasifico la fila, se
+# respeta; si no, se usa la señal del diccionario.
+DICCIONARIO_502 = Path(
+    r"C:\Users\eah\apoyoconsultoria.com\File Server - Analytics\3 Proyectos\2025"
+    r"\2025-116-L FPC Dashboard 25\4 Analisis\3 Programas\adicional 2026"
+    r"\diccionario_ATE_DESCCONSUMO_502_estandarizado.xlsx"
+)
+dic = pd.read_excel(DICCIONARIO_502, sheet_name="Diccionario_502",
+                     usecols=["ATE_DESCCONSUMO", "categoria_recurso_502", "subcategoria_recurso_502"])
+dic["ATE_DESCCONSUMO"] = dic["ATE_DESCCONSUMO"].str.strip()
+dic = dic.drop_duplicates(subset="ATE_DESCCONSUMO")
+
+df["_DESC_STRIP"] = df["ATE_DESCCONSUMO"].str.strip()
+df = df.merge(dic, left_on="_DESC_STRIP", right_on="ATE_DESCCONSUMO", how="left", suffixes=("", "_DIC"))
+df = df.drop(columns=["_DESC_STRIP", "ATE_DESCCONSUMO_DIC"])
+
+# Reglas por subcategoria (mas fina que la categoria general, evita mezclar
+# quimio/radio con otros insumos/medicamentos de la misma categoria amplia):
+#  - Antineoplasico/terapia oncologica sistemica  -> QUIMIOTERAPIA (el farmaco en si)
+#  - Administracion de quimioterapia              -> QUIMIOTERAPIA (el procedimiento de infusion)
+#  - Radioterapia (categoria completa)            -> RADIOTERAPIA (bloque chico, no ambiguo)
+#  - Cirugia colorrectal / Cirugia digestiva       -> CIRUGIA (se excluyen deliberadamente
+#    Cirugia urologica/toracica/gineco-obstetrica y la generica "Cirugia u otra intervencion
+#    quirurgica" para no arrastrar comorbilidades no relacionadas a CRC)
+SUBCAT_A_TRAT = {
+    "Antineoplásico / terapia oncológica sistémica": "QUIMIOTERAPIA",
+    "Administración de quimioterapia": "QUIMIOTERAPIA",
+    "Cirugía colorrectal": "CIRUGIA",
+    "Cirugía digestiva": "CIRUGIA",
+}
+sin_clasificar_regex = df["CATEGORIA_TRAT"] == "OTRO"
+for subcat, cat in SUBCAT_A_TRAT.items():
+    mask = sin_clasificar_regex & (df["subcategoria_recurso_502"] == subcat)
+    df.loc[mask, "CATEGORIA_TRAT"] = cat
+mask_radio = sin_clasificar_regex & (df["categoria_recurso_502"] == "Radioterapia")
+df.loc[mask_radio, "CATEGORIA_TRAT"] = "RADIOTERAPIA"
+df = df.drop(columns=["categoria_recurso_502", "subcategoria_recurso_502"])
+
+n_reclasificado_dic = (sin_clasificar_regex & (df["CATEGORIA_TRAT"] != "OTRO")).sum()
+print(f"  [Diccionario 502] {n_reclasificado_dic:,} registro(s) reclasificados de OTRO a "
+      f"CIRUGIA/QUIMIOTERAPIA/RADIOTERAPIA que el regex de texto no habia detectado.")
+
 modalidades = []
 for cat in PAT_TRAT:
     sub = df[df["CATEGORIA_TRAT"] == cat]

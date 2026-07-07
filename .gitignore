@@ -2,3 +2,7 @@
 **/.pbi/cache.abf
 **/pbi/
 .pbi/
+**/fissal/hitos_paciente/__pycache__
+**/fissal/comparativo_crc_estomago/__pycache__
+**/.claude
+**/.claude/settings.local.json

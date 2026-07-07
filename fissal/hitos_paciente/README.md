@@ -78,7 +78,19 @@ union rectosigmoidea / C20 recto).
 Se identifican episodios de 3 modalidades por paciente (mismo patron de
 `03_analisis_ccr.py`, pero cada una con su propia fecha de inicio/fin,
 numero de sesiones y costo): `CIRUGIA`, `QUIMIOTERAPIA` (procedimiento +
-medicamento), `RADIOTERAPIA`. De ahi se derivan:
+medicamento), `RADIOTERAPIA`. La deteccion combina 2 fuentes: el regex de
+texto libre sobre `ATE_DESCCONSUMO` (original) y, como señal adicional (no
+reemplazo), el diccionario `diccionario_ATE_DESCCONSUMO_502_estandarizado.xlsx`
+(hoja `Diccionario_502`), que clasifica cada `ATE_DESCCONSUMO` en una
+`categoria_recurso_502` / `subcategoria_recurso_502` mas confiable que el
+texto libre. Un registro que el regex no clasifico se reclasifica via
+diccionario si su `subcategoria_recurso_502` es "Antineoplasico / terapia
+oncologica sistemica" o "Administracion de quimioterapia" (QUIMIOTERAPIA),
+"Cirugia colorrectal" o "Cirugia digestiva" (CIRUGIA — se excluyen a
+proposito las subcategorias de cirugia urologica/toracica/gineco-obstetrica
+para no arrastrar comorbilidades no relacionadas a CRC), o si su
+`categoria_recurso_502` es "Radioterapia" (RADIOTERAPIA). Esto reclasifico
+4,677 registros que el regex no habia detectado. De ahi se derivan:
 
 - `SECUENCIA_TRATAMIENTO`: orden cronologico de modalidades (p.ej.
   `CIRUGIA > QUIMIOTERAPIA` = adyuvante, `QUIMIOTERAPIA > CIRUGIA` =
@@ -97,12 +109,15 @@ medicamento), `RADIOTERAPIA`. De ahi se derivan:
   radio, tambien labs, medicamentos de soporte, hospitalizacion) dentro de
   la ventana de tratamiento.
 
-**Hallazgo clave:** el **68.1%** de los pacientes CCR no tiene ninguna de
-las 3 modalidades detectada por estos patrones. Es coherente con la
-limitacion ya documentada en el README principal (los patrones de cirugia/
-quimio son aproximaciones por texto), pero conviene revisarlo — puede haber
-codigos de procedimiento sin descripcion reconocible, o pacientes que solo
-reciben manejo sintomatico/paliativo sin quimio/cirugia formal.
+**Hallazgo clave:** el **67.7%** de los pacientes CCR no tiene ninguna de
+las 3 modalidades detectada (antes de sumar el diccionario era 68.1% —
+la mejora reclasifico 4,677 registros pero la mayoria caia en pacientes que
+ya tenian otra modalidad detectada, por eso el % de pacientes baja poco
+aunque el detalle linea a linea mejoro bastante). Sigue siendo coherente con
+la limitacion ya documentada en el README principal (los patrones de
+cirugia/quimio son aproximaciones), pero conviene seguir revisandolo — puede
+haber codigos de procedimiento sin descripcion reconocible, o pacientes que
+solo reciben manejo sintomatico/paliativo sin quimio/cirugia formal.
 
 ### 4. Desenlace
 
@@ -146,8 +161,8 @@ ver seccion de calidad de datos):
 | `POSIBLE_REMISION_O_ALTA` | 7,989 | 50.9% |
 | `EN_SEGUIMIENTO_ACTIVO` | 4,538 | 28.9% |
 | `FALLECIDO` | 2,390 | 15.2% |
-| `CONTROL_POST_PAUSA` | 663 | 4.2% |
-| `RECAIDA_PROBABLE` | 99 | 0.6% |
+| `CONTROL_POST_PAUSA` | 661 | 4.2% |
+| `RECAIDA_PROBABLE` | 101 | 0.6% |
 | `PALIATIVO` | 19 | 0.1% |
 
 La gran mayoria de las pausas largas resultan ser el final de la historia
@@ -198,24 +213,47 @@ Se uso una regla relativa por item (no un tope absoluto) porque items como
 miles (unidad de medida muy fina, precio unitario ~S/0.01) — un tope
 absoluto los habria corregido por error.
 
-**Resultado al correr sobre los 7 anios completos:** 415 registros
-corregidos, S/861.5 millones en montos absurdos reescalados a valores
-razonables. Los casos mas claros (cantidades con patron de "dedo pesado":
-digitos repetidos o miles/millones donde el item normalmente es 1-2
-unidades) incluyen un filtro de ventilador facturado en S/79,999,992 (3.3M
-unidades, mediana del item = 1), una pinza laparoscopica en S/31,640,625
-(5,625 unidades, mediana = 1), y 2 cateteres de hemodialisis en
-S/2,406,950 cada uno (1,610 unidades, mediana = 1) — ademas del caso ya
-descrito del Hospital Carrion. **La categoria menos certera es `OXIGENO
-MEDICINAL`** (253 de los 415 registros): su precio unitario varia mucho
-entre registros (de S/0.001 a S/10 por "unidad"), lo que sugiere que el
-item mezcla distintas unidades de medida bajo el mismo codigo — no hay
-forma de estar 100% seguro de cuales de esas correcciones son errores reales
-vs. uso legitimo de oxigeno muy prolongado. El impacto en soles de esa
-categoria especifica es comparativamente chico frente a los casos de arriba.
-Si se necesita mas precision, lo siguiente seria revisar `OXIGENO MEDICINAL`
-por separado (p.ej. exigir tambien que el precio unitario del item sea
-estable entre registros antes de confiar en su mediana de cantidad).
+**Se investigo si el alza de precio del oxigeno durante la pandemia
+(2020-2021) explicaba estos casos.** Los datos no lo respaldan: los
+outliers de `OXIGENO MEDICINAL` se concentran en 2018 y 2022 (no en
+2020-2021), y el precio unitario mediano de la poblacion general de
+oxigeno en realidad *bajo* en 2020-2021 (S/2.12 y S/1.30) frente a anios
+previos (S/3.75 en 2016). Sin embargo, al revisar registro por registro
+si contrastaban contra el precio real de mercado de un balon de oxigeno
+medicinal en Peru (S/450-2,000 segun capacidad y kit de accesorios), se
+encontro que **62 de los 254 registros de oxigeno marcados como outlier ya
+tenian, antes de corregir, un monto neto dentro de ese rango plausible**
+— la mediana historica de cantidad de esos items no es confiable (el
+codigo mezcla a veces el balon completo, a veces una unidad mas fina), y
+reescalar el monto los distorsionaba en vez de corregirlos. Por eso
+`corregir_outliers_cantidad` excluye de la correccion cualquier registro
+de oxigeno cuyo `ATE_MONTONETO` original ya caiga entre S/300 y S/3,000
+(`OXIGENO_MONTO_PLAUSIBLE_MIN/MAX`).
+
+**Resultado al correr sobre los 7 anios completos (con la exclusion de
+oxigeno ya aplicada):** 336 registros corregidos (antes 415), S/861.4
+millones en montos absurdos reescalados a valores razonables — el monto
+total descontado practicamente no cambio frente a la version anterior
+porque los 79 registros de oxigeno excluidos (254 -> 175 corregidos)
+representaban montos individualmente pequenos (S/300-3,000), asi que su
+peso en soles era marginal frente a los casos extremos. Los casos mas
+claros (cantidades con patron de "dedo pesado": digitos repetidos o
+miles/millones donde el item normalmente es 1-2 unidades) incluyen un
+filtro de ventilador facturado en S/79,999,992 (3.3M unidades, mediana
+del item = 1), una pinza laparoscopica en S/31,640,625 (5,625 unidades,
+mediana = 1), y 2 cateteres de hemodialisis en S/2,406,950 cada uno
+(1,610 unidades, mediana = 1) — ademas del caso ya descrito del Hospital
+Carrion. **La categoria menos certera sigue siendo `OXIGENO MEDICINAL`**
+(175 de los 336 registros, incluso tras la exclusion de montos
+plausibles): su precio unitario varia mucho entre registros (de S/0.001
+a S/10 por "unidad"), lo que sugiere que el item mezcla distintas
+unidades de medida bajo el mismo codigo — no hay forma de estar 100%
+segura de cuales de las correcciones restantes son errores reales vs.
+uso legitimo de oxigeno muy prolongado. Si se necesita mas precision, lo
+siguiente seria revisar
+`OXIGENO MEDICINAL` por separado (p.ej. exigir tambien que el precio
+unitario del item sea estable entre registros antes de confiar en su
+mediana de cantidad).
 
 ### Edades clinicamente implausibles para CCR
 

@@ -4,6 +4,8 @@ import sys
 import gc
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 SILVER = Path(r"C:\Users\eah\apoyoconsultoria.com\File Server - Analytics\7 Datos\Datos abiertos\fissal\01_silver")
 ARCHIVO = SILVER / "FISSAL_CANCER_COLORRECTAL_2016_2022.parquet"
 FECHA_CORTE = pd.Timestamp("2022-12-31")

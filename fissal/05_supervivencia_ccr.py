@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,6 +7,8 @@ from pathlib import Path
 from lifelines import KaplanMeierFitter
 from lifelines.statistics import logrank_test
 import gc
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 SILVER = Path(r"C:\Users\eah\apoyoconsultoria.com\File Server - Analytics\7 Datos\Datos abiertos\fissal\01_silver")
 ARCHIVO_CCR = SILVER / "FISSAL_CANCER_COLORRECTAL_2016_2022.parquet"

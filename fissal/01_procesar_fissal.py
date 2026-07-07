@@ -64,6 +64,32 @@ def procesar_ubigeo(df):
 FACTOR_OUTLIER_CANTIDAD = 1000  # cantidad > 1000x la mediana del item = sospechoso
 MIN_MUESTRAS_REFERENCIA = 5     # minimo de registros historicos del item para confiar en su mediana
 
+# Excepcion para OXIGENO MEDICINAL: se investigo si la regla de cantidad
+# estaba confundiendo el alza real de precio/consumo de oxigeno en la
+# pandemia (2020-2021) con un error de captura. Los datos NO respaldan esa
+# hipotesis (los outliers de oxigeno se concentran en 2018 y 2022, no en
+# 2020-2021, y su precio unitario es cercano a cero en todos los anios).
+# Pero SI se encontro que 62 de 254 registros de oxigeno marcados como
+# outlier ya tenian, ANTES de corregir, un ATE_MONTONETO dentro del rango
+# real de mercado de un balon de oxigeno medicinal en Peru (S/450-2,000
+# segun capacidad y kit de accesorios). Para esos, la mediana historica de
+# cantidad del item no es confiable (a veces se codifica el balon completo,
+# a veces una unidad mas fina) y reescalar el monto lo distorsiona en vez
+# de corregirlo. Por eso no se toca ningun registro de oxigeno cuyo monto
+# original ya caiga en este rango plausible.
+OXIGENO_MONTO_PLAUSIBLE_MIN = 300   # margen bajo el precio de balon simple (S/450)
+OXIGENO_MONTO_PLAUSIBLE_MAX = 3000  # margen sobre el precio de balon + kit (S/2,000)
+
+# Correccion manual: GRAPADORA QUIRURGICA LINEAL CORTANTE ENDOSCOPICA 12mm
+# (ATE_CODCONSUMO 23851) aparece una unica vez en los 7 anios de datos, con
+# ATE_CANTBRUTA=11,250 (precio unitario implicito S/1,150, monto S/12.9M en un
+# solo registro). corregir_outliers_cantidad no puede detectarlo porque exige
+# MIN_MUESTRAS_REFERENCIA items historicos para calcular una mediana de
+# referencia, y este item no tiene ningun otro registro con el que comparar.
+# Cantidad real verificada manualmente: 1 (no existe insumo quirurgico que se
+# facture en lotes de miles de unidades por atencion).
+CODIGO_GRAPADORA_OUTLIER = "23851"
+
 
 def calcular_referencia_cantidad(anios, carpeta_bronce):
     """Pasada liviana (solo 2 columnas) sobre todos los anios crudos para
@@ -97,6 +123,13 @@ def corregir_outliers_cantidad(df, ref):
         & (df["ATE_CANTBRUTA"] > df["MEDIANA_CANT_REF"] * FACTOR_OUTLIER_CANTIDAD)
     )
 
+    oxigeno_monto_plausible = (
+        df["ATE_DESCCONSUMO"].str.contains("OXIGENO", case=False, na=False)
+        & (df["ATE_MONTONETO"] >= OXIGENO_MONTO_PLAUSIBLE_MIN)
+        & (df["ATE_MONTONETO"] <= OXIGENO_MONTO_PLAUSIBLE_MAX)
+    )
+    mask = mask & ~oxigeno_monto_plausible
+
     n_outliers = int(mask.sum())
     if n_outliers > 0:
         monto_antes = df.loc[mask, "ATE_MONTONETO"].sum()
@@ -119,6 +152,29 @@ def corregir_outliers_cantidad(df, ref):
               f"(se descuenta S/{monto_antes - monto_despues:,.2f} del total facturado)")
 
     return df.drop(columns=["MEDIANA_CANT_REF", "N_ITEM_REF"])
+
+
+def corregir_outlier_manual_grapadora(df):
+    """Ver nota de CODIGO_GRAPADORA_OUTLIER: item con un unico registro en toda
+    la historia FISSAL, por lo que corregir_outliers_cantidad no tiene con que
+    calcular una mediana de referencia y lo deja pasar sin corregir."""
+    if "ATE_CODCONSUMO" not in df.columns:
+        return df
+
+    mask = (df["ATE_CODCONSUMO"].astype(str) == CODIGO_GRAPADORA_OUTLIER) & (df["ATE_CANTBRUTA"] > 1)
+    n_outliers = int(mask.sum())
+    if n_outliers > 0:
+        monto_antes = df.loc[mask, "ATE_MONTONETO"].sum()
+        factor = 1 / df.loc[mask, "ATE_CANTBRUTA"]
+        for col in ["ATE_CANTBRUTA", "ATE_CANTNETA", "ATE_MONTOBRUTO", "ATE_MONTONETO"]:
+            if df[col].dtype.kind in "iu":
+                df[col] = df[col].astype(float)
+            df.loc[mask, col] = df.loc[mask, col] * factor
+        monto_despues = df.loc[mask, "ATE_MONTONETO"].sum()
+        print(f"  [Calidad de datos] Correccion manual (item sin historial suficiente): "
+              f"{n_outliers} registro(s) de grapadora quirurgica (codigo {CODIGO_GRAPADORA_OUTLIER}), "
+              f"cantidad reescalada a 1. Monto neto: S/{monto_antes:,.2f} -> S/{monto_despues:,.2f}")
+    return df
 
 
 def agregar_columnas_derivadas(df):
@@ -204,6 +260,7 @@ for yr in ANIOS:
     df = procesar_fechas(df)
     df = procesar_ubigeo(df)
     df = corregir_outliers_cantidad(df, REF_CANTIDAD)
+    df = corregir_outlier_manual_grapadora(df)
     df = agregar_columnas_derivadas(df)
 
     salida = SILVER / f"FISSAL_PRESTACIONES_{yr}.parquet"
