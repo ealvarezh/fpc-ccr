@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FISSAL CCR — Panel de datos</title>
+<style>
+  /* ============================= TOKENS ============================= */
+  :root {
+    color-scheme: light;
+    --bg: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #ffffff;
+    --border: rgba(11,11,11,0.10);
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+
+    --c1: #2a78d6; /* blue      */
+    --c2: #eb6834; /* orange    */
+    --c3: #1baf7a; /* aqua      */
+    --c4: #eda100; /* yellow    */
+    --c5: #e87ba4; /* magenta   */
+    --c6: #008300; /* green     */
+    --c7: #4a3aa7; /* violet    */
+    --c8: #e34948; /* red       */
+
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+
+    --seq-100:#cde2fb; --seq-200:#9ec5f4; --seq-300:#6da7ec; --seq-400:#3987e5;
+    --seq-500:#256abf; --seq-600:#184f95; --seq-700:#0d366b;
+
+    --nav-bg: #0f1c22;
+    --nav-text: #aebcc0;
+    --nav-text-active: #ffffff;
+    --nav-accent: #4fb8da;
+    --nav-border: rgba(255,255,255,0.08);
+    --nav-hover: rgba(255,255,255,0.06);
+
+    --radius: 10px;
+    --font-ui: -apple-system, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0d0d0d;
+      --surface: #1a1a19;
+      --surface-2: #201f1d;
+      --border: rgba(255,255,255,0.10);
+      --text: #ffffff;
+      --text-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+      --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #201f1d;
+    --border: rgba(255,255,255,0.10);
+    --text: #ffffff;
+    --text-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+    --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { margin: 0; text-wrap: balance; font-weight: 650; letter-spacing: -0.01em; }
+  p { margin: 0; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  a { color: inherit; }
+  button { font-family: inherit; }
+
+  /* ============================= LAYOUT ============================= */
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+  .nav {
+    background: var(--nav-bg);
+    color: var(--nav-text);
+    padding: 18px 12px 24px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .nav-brand { padding: 4px 10px 10px; border-bottom: 1px solid var(--nav-border); margin-bottom: 4px; }
+  .nav-brand .kicker { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--nav-accent); font-weight: 700; }
+  .nav-brand h1 { font-size: 17px; color: #fff; margin-top: 3px; }
+  .nav-group-label { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #6d7d82; padding: 0 10px; margin-bottom: 6px; font-weight: 650; }
+  .nav-group { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+  .nav-btn {
+    display: flex; align-items: center; gap: 9px;
+    background: none; border: none; color: var(--nav-text);
+    text-align: left; padding: 8px 10px; border-radius: 7px;
+    font-size: 13.5px; cursor: pointer; width: 100%;
+  }
+  .nav-btn:hover { background: var(--nav-hover); color: #fff; }
+  .nav-btn.active { background: rgba(79,184,218,0.14); color: var(--nav-text-active); }
+  .nav-btn.active .dot { background: var(--nav-accent); }
+  .nav-btn .dot { width: 6px; height: 6px; border-radius: 50%; background: #3a4a50; flex: none; }
+  .nav-btn:focus-visible { outline: 2px solid var(--nav-accent); outline-offset: 1px; }
+  .nav-foot { margin-top: auto; padding: 10px; font-size: 11px; color: #5c6c71; border-top: 1px solid var(--nav-border); }
+  .theme-toggle {
+    margin: 0 10px; display: flex; gap: 4px; background: rgba(255,255,255,0.05);
+    padding: 3px; border-radius: 8px;
+  }
+  .theme-toggle button {
+    flex: 1; background: none; border: none; color: var(--nav-text); font-size: 11.5px;
+    padding: 5px 4px; border-radius: 6px; cursor: pointer;
+  }
+  .theme-toggle button.active { background: var(--nav-bg); color: #fff; box-shadow: 0 0 0 1px var(--nav-border); }
+
+  .main { min-width: 0; }
+  .topbar {
+    position: sticky; top: 0; z-index: 5;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+  }
+  .topbar .eyebrow { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 650; margin-bottom: 4px; }
+  .topbar h2 { font-size: 22px; }
+  .topbar .sub { color: var(--text-2); font-size: 13px; margin-top: 4px; max-width: 70ch; }
+
+  .panel { display: none; padding: 24px 32px 64px; }
+  .panel.active { display: block; }
+
+  .section { margin-bottom: 34px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .section-head h3 { font-size: 15px; }
+  .section-head .note { font-size: 12px; color: var(--muted); text-align: right; max-width: 46ch; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+  .card-grid.single { grid-template-columns: 1fr; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .card > .card-title { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 650; margin-bottom: 12px; }
+  .card > .card-desc { font-size: 12.5px; color: var(--text-2); margin: -6px 0 12px; max-width: 62ch; }
+
+  .stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .stat .label { font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+  .stat .value { font-size: 25px; font-weight: 650; line-height: 1.15; }
+  .stat .value .unit { font-size: 13px; font-weight: 600; color: var(--text-2); margin-left: 4px; }
+  .stat .note { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .stat.accent-critical .value { color: var(--critical); }
+  .stat.accent-c1 .value { color: var(--c1); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 480px; }
+  thead th {
+    position: sticky; top: 0; background: var(--surface-2); text-align: left;
+    font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+    font-weight: 650; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: color-mix(in srgb, var(--c1) 5%, transparent); }
+  td.num, th.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  td.muted { color: var(--text-2); font-size: 12.5px; }
+
+  .chart-wrap { position: relative; }
+  .bar-row { display: grid; grid-template-columns: minmax(90px, 34%) 1fr auto; align-items: center; gap: 10px; padding: 5px 0; }
+  .bar-row .lbl { font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { position: relative; height: 18px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+  .bar-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 4px; transition: filter .1s; }
+  .bar-row:hover .bar-fill { filter: brightness(1.08); }
+  .bar-val { font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); min-width: 62px; text-align: right; }
+
+  .vbars { display: flex; align-items: flex-end; gap: 6px; height: 190px; padding: 4px 4px 0; }
+  .vbar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; cursor: default; }
+  .vbar-col .vbar { width: 100%; max-width: 34px; border-radius: 4px 4px 0 0; }
+  .vbar-col .vlbl { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 50;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+    padding: 7px 10px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.16);
+    max-width: 260px; opacity: 0; transition: opacity .08s;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .t-title { font-weight: 650; margin-bottom: 3px; }
+  .tooltip .t-row { display: flex; justify-content: space-between; gap: 12px; color: var(--text-2); }
+  .tooltip .t-row b { color: var(--text); font-family: var(--font-mono); }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 650; padding: 3px 9px; border-radius: 999px; }
+  .pill.critical { background: color-mix(in srgb, var(--critical) 15%, transparent); color: var(--critical); }
+  .pill.warning { background: color-mix(in srgb, var(--warning) 20%, transparent); color: color-mix(in srgb, var(--warning) 70%, black); }
+  .pill.good { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+  .pill.neutral { background: var(--grid); color: var(--text-2); }
+
+  .callout {
+    border: 1px solid var(--border); border-left: 3px solid var(--c2);
+    background: color-mix(in srgb, var(--c2) 6%, var(--surface));
+    border-radius: 8px; padding: 12px 14px; font-size: 12.5px; color: var(--text-2);
+  }
+  .callout b { color: var(--text); }
+  .callout.critical { border-left-color: var(--critical); background: color-mix(in srgb, var(--critical) 7%, var(--surface)); }
+
+  .two-col { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
+  @media (max-width: 980px) {
+    .app { grid-template-columns: 1fr; }
+    .nav { position: relative; height: auto; }
+    .two-col { grid-template-columns: 1fr; }
+    .card-grid { grid-template-columns: 1fr; }
+  }
+  ::selection { background: color-mix(in srgb, var(--c1) 30%, transparent); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <nav class="nav">
+    <div class="nav-brand">
+      <div class="kicker">Apoyo Consultoría</div>
+      <h1>CCR &amp; FISSAL</h1>
+    </div>
+
+    <div class="theme-toggle" role="group" aria-label="Tema">
+      <button data-theme-choice="light">Claro</button>
+      <button data-theme-choice="dark">Oscuro</button>
+      <button data-theme-choice="system" class="active">Sistema</button>
+    </div>
+
+    <div>
+      <div class="nav-group-label">FISSAL</div>
+      <div class="nav-group" data-nav-group="fissal">
+        <button class="nav-btn active" data-target="p-resumen"><span class="dot"></span>Resumen</button>
+        <button class="nav-btn" data-target="p-tiempos"><span class="dot"></span>Tiempos entre hitos</button>
+        <button class="nav-btn" data-target="p-hosp"><span class="dot"></span>Hospitalización</button>
+        <button class="nav-btn" data-target="p-categorias"><span class="dot"></span>Costo por categoría</button>
+        <button class="nav-btn" data-target="p-severidad"><span class="dot"></span>Severidad al ingreso</button>
+        <button class="nav-btn" data-target="p-fallecidos"><span class="dot"></span>Fallecidos</button>
+        <button class="nav-btn" data-target="p-evolucion"><span class="dot"></span>Evolución anual</button>
+        <button class="nav-btn" data-target="p-otros"><span class="dot"></span>Otros males</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="nav-group-label">Fuentes complementarias</div>
+      <div class="nav-group" data-nav-group="complementarias">
+        <button class="nav-btn" data-target="p-essalud"><span class="dot"></span>EsSalud</button>
+        <button class="nav-btn" data-target="p-sis"><span class="dot"></span>SIS</button>
+      </div>
+    </div>
+
+    <div class="nav-foot" id="nav-foot">Generado —</div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="eyebrow">Cáncer colorrectal · financiamiento público</div>
+      <h2 id="topbar-title">Resumen</h2>
+      <p class="sub" id="topbar-sub">Cohorte de pacientes con cáncer colorrectal (CIE-10 C18/C19/C20) financiados por FISSAL, 2016–2026.</p>
+    </div>
+
+    <!-- ===================== PANELES ===================== -->
+    <section class="panel active" id="p-resumen"></section>
+    <section class="panel" id="p-tiempos"></section>
+    <section class="panel" id="p-hosp"></section>
+    <section class="panel" id="p-categorias"></section>
+    <section class="panel" id="p-severidad"></section>
+    <section class="panel" id="p-fallecidos"></section>
+    <section class="panel" id="p-evolucion"></section>
+    <section class="panel" id="p-otros"></section>
+    <section class="panel" id="p-essalud"></section>
+    <section class="panel" id="p-sis"></section>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const DATA = __DASHBOARD_DATA__;
+</script>
+<script>
+(function () {
+  "use strict";
+
+  /* ============================= HELPERS ============================= */
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+  function el(tag, attrs, children) {
+    const node = document.createElement(tag);
+    if (attrs) for (const k in attrs) {
+      if (k === "class") node.className = attrs[k];
+      else if (k === "html") node.innerHTML = attrs[k];
+      else if (k.startsWith("on")) node.addEventListener(k.slice(2), attrs[k]);
+      else node.setAttribute(k, attrs[k]);
+    }
+    (children || []).forEach(c => {
+      if (c == null) return;
+      node.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+    });
+    return node;
+  }
+
+  const nf0 = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 1 });
+  const soles = (v) => v == null ? "—" : "S/ " + nf0.format(v);
+  const solesD = (v) => v == null ? "—" : "S/ " + nf1.format(v);
+  const num = (v) => v == null ? "—" : nf0.format(v);
+  const pct = (v, d) => v == null ? "—" : (v * 100).toFixed(d == null ? 1 : d) + "%";
+  const pct100 = (v, d) => v == null ? "—" : v.toFixed(d == null ? 1 : d) + "%";
+
+  const PALETTE = ["c1","c2","c3","c4","c5","c6","c7","c8"];
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue("--" + name).trim(); }
+
+  /* ============================= TOOLTIP ============================= */
+  const tooltipEl = $("#tooltip");
+  function showTooltip(x, y, html) {
+    tooltipEl.innerHTML = html;
+    tooltipEl.classList.add("show");
+    const pad = 14;
+    let left = x + pad, top = y + pad;
+    const rect = tooltipEl.getBoundingClientRect();
+    if (left + rect.width > window.innerWidth - 8) left = x - rect.width - pad;
+    if (top + rect.height > window.innerHeight - 8) top = y - rect.height - pad;
+    tooltipEl.style.left = left + "px";
+    tooltipEl.style.top = top + "px";
+  }
+  function hideTooltip() { tooltipEl.classList.remove("show"); }
+
+  /* ============================= STAT TILE ============================= */
+  function stat(label, value, unit, note, accentClass) {
+    return el("div", { class: "stat" + (accentClass ? " " + accentClass : "") }, [
+      el("div", { class: "label" }, [label]),
+      el("div", { class: "value tnum" }, [value, unit ? el("span", { class: "unit" }, [unit]) : null]),
+      note ? el("div", { class: "note" }, [note]) : null,
+    ]);
+  }
+
+  /* ============================= HORIZONTAL BAR CHART =============================
+     items: [{label, value, sub}]  opts: {color, formatValue, colorFn(item,i)} */
+  function hBarChart(container, items, opts) {
+    opts = opts || {};
+    const max = Math.max(...items.map(d => d.value), 1e-9);
+    const fmt = opts.formatValue || num;
+    const wrap = el("div", { class: "chart-wrap" });
+    items.forEach((d, i) => {
+      const color = opts.colorFn ? opts.colorFn(d, i) : (opts.color || "var(--c1)");
+      const w = Math.max((d.value / max) * 100, 1.2);
+      const fill = el("div", { class: "bar-fill", style: `width:${w}%; background:${color};` });
+      const track = el("div", { class: "bar-track" }, [fill]);
+      const row = el("div", { class: "bar-row" }, [
+        el("div", { class: "lbl", title: d.label }, [d.label]),
+        track,
+        el("div", { class: "bar-val tnum" }, [fmt(d.value)]),
+      ]);
+      row.addEventListener("mousemove", (e) => {
+        showTooltip(e.clientX, e.clientY, `<div class="t-title">${d.label}</div><div class="t-row"><span>${opts.tooltipLabel || "Valor"}</span><b>${fmt(d.value)}</b></div>${d.sub ? `<div class="t-row"><span>${d.sub}</span></div>` : ""}`);
+      });
+      row.addEventListener("mouseleave", hideTooltip);
+      wrap.appendChild(row);
+    });
+    container.appendChild(wrap);
+  }
+
+  /* ============================= PAR COSTO / VOLUMEN =============================
+     Dos hBarChart alineados en el mismo orden para poder comparar de un
+     vistazo si lo mas caro por paciente es tambien lo mas frecuente, o si
+     hay categorias caras-pero-raras / baratas-pero-masivas. */
+  function costVolumePair(parent, title, note, items, opts) {
+    opts = opts || {};
+    const s = el("div", { class: "section" });
+    sectionHead(s, title, note);
+    const grid = el("div", { class: "card-grid" });
+
+    const c1 = el("div", { class: "card" }, [el("div", { class: "card-title" }, [opts.costLabel || "Costo por paciente"])]);
+    const w1 = el("div", {});
+    hBarChart(w1, items.map(d => ({ label: d.label, value: d.cost, sub: d.sub })),
+      { color: opts.costColor || "var(--c1)", formatValue: soles, tooltipLabel: "Costo por paciente" });
+    c1.appendChild(w1);
+    grid.appendChild(c1);
+
+    const c2 = el("div", { class: "card" }, [el("div", { class: "card-title" }, [opts.volLabel || "N° de pacientes"])]);
+    const w2 = el("div", {});
+    hBarChart(w2, items.map(d => ({ label: d.label, value: d.vol })),
+      { color: opts.volColor || "var(--c3)", formatValue: num, tooltipLabel: "Pacientes" });
+    c2.appendChild(w2);
+    grid.appendChild(c2);
+
+    s.appendChild(grid);
+    parent.appendChild(s);
+  }
+
+  /* ============================= VERTICAL BAR CHART ============================= */
+  function vBarChart(container, items, opts) {
+    opts = opts || {};
+    const max = Math.max(...items.map(d => d.value), 1e-9);
+    const fmt = opts.formatValue || num;
+    const wrap = el("div", { class: "vbars" });
+    items.forEach((d, i) => {
+      const color = opts.colorFn ? opts.colorFn(d, i) : (opts.color || "var(--c1)");
+      const h = Math.max((d.value / max) * 100, 1.5);
+      const bar = el("div", { class: "vbar", style: `height:${h}%; background:${color};` });
+      const col = el("div", { class: "vbar-col" }, [bar, el("div", { class: "vlbl" }, [d.label])]);
+      col.addEventListener("mousemove", (e) => {
+        showTooltip(e.clientX, e.clientY, `<div class="t-title">${d.label}</div><div class="t-row"><span>${opts.tooltipLabel || "Valor"}</span><b>${fmt(d.value)}</b></div>`);
+      });
+      col.addEventListener("mouseleave", hideTooltip);
+      wrap.appendChild(col);
+    });
+    container.appendChild(wrap);
+  }
+
+  /* ============================= LINE CHART ============================= */
+  function lineChart(container, series, opts) {
+    // series: [{name, color, points:[{x,y}]}]
+    opts = opts || {};
+    const W = opts.width || 640, H = opts.height || 220;
+    const M = { l: 54, r: 16, t: 14, b: 26 };
+    const allPoints = series.flatMap(s => s.points);
+    const xs = allPoints.map(p => p.x);
+    const ys = allPoints.map(p => p.y);
+    const xmin = Math.min(...xs), xmax = Math.max(...xs);
+    const ymin = 0, ymax = Math.max(...ys) * 1.12;
+    const sx = (x) => M.l + (xmax === xmin ? 0 : (x - xmin) / (xmax - xmin)) * (W - M.l - M.r);
+    const sy = (y) => H - M.b - (ymax === ymin ? 0 : (y - ymin) / (ymax - ymin)) * (H - M.t - M.b);
+
+    const NS = "http://www.w3.org/2000/svg";
+    const svgEl = document.createElementNS(NS, "svg");
+    svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svgEl.setAttribute("width", "100%");
+    svgEl.style.display = "block";
+    svgEl.style.overflow = "visible";
+
+    function mk(tag, attrs) {
+      const n = document.createElementNS(NS, tag);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      return n;
+    }
+
+    // gridlines + y ticks
+    const ticks = 4;
+    for (let i = 0; i <= ticks; i++) {
+      const yv = ymin + (ymax - ymin) * (i / ticks);
+      const yy = sy(yv);
+      svgEl.appendChild(mk("line", { x1: M.l, x2: W - M.r, y1: yy, y2: yy, stroke: "var(--grid)", "stroke-width": 1 }));
+      const t = mk("text", { x: M.l - 8, y: yy + 3, "text-anchor": "end", fill: "var(--muted)", "font-size": 10, "font-family": "var(--font-mono)" });
+      t.textContent = opts.formatY ? opts.formatY(yv) : Math.round(yv);
+      svgEl.appendChild(t);
+    }
+    // x labels
+    const xVals = [...new Set(xs)].sort((a, b) => a - b);
+    xVals.forEach(xv => {
+      const t = mk("text", { x: sx(xv), y: H - 6, "text-anchor": "middle", fill: "var(--muted)", "font-size": 10 });
+      t.textContent = xv;
+      svgEl.appendChild(t);
+    });
+    svgEl.appendChild(mk("line", { x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b, stroke: "var(--baseline)", "stroke-width": 1 }));
+
+    const hoverGroup = mk("g", {});
+    const hoverLine = mk("line", { y1: M.t, y2: H - M.b, stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3,3", opacity: 0 });
+    hoverGroup.appendChild(hoverLine);
+
+    series.forEach((s) => {
+      const pts = s.points.slice().sort((a, b) => a.x - b.x);
+      const d = pts.map((p, i) => (i === 0 ? "M" : "L") + sx(p.x).toFixed(1) + " " + sy(p.y).toFixed(1)).join(" ");
+      svgEl.appendChild(mk("path", { d, fill: "none", stroke: s.color, "stroke-width": 2.2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+      pts.forEach(p => {
+        svgEl.appendChild(mk("circle", { cx: sx(p.x), cy: sy(p.y), r: 3, fill: s.color, "data-x": p.x, "data-y": p.y }));
+      });
+    });
+    svgEl.appendChild(hoverGroup);
+
+    // hover capture
+    const overlay = mk("rect", { x: M.l, y: M.t, width: Math.max(W - M.l - M.r, 1), height: Math.max(H - M.t - M.b, 1), fill: "transparent" });
+    overlay.addEventListener("mousemove", (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const scale = rect.width / W;
+      const mx = (e.clientX - rect.left) / scale;
+      let closest = xVals[0], dist = Infinity;
+      xVals.forEach(xv => { const dd = Math.abs(sx(xv) - mx); if (dd < dist) { dist = dd; closest = xv; } });
+      hoverLine.setAttribute("x1", sx(closest)); hoverLine.setAttribute("x2", sx(closest)); hoverLine.setAttribute("opacity", 1);
+      let html = `<div class="t-title">${closest}</div>`;
+      series.forEach(s => {
+        const p = s.points.find(pp => pp.x === closest);
+        if (p) html += `<div class="t-row"><span>${s.name}</span><b>${opts.formatY ? opts.formatY(p.y) : p.y}</b></div>`;
+      });
+      showTooltip(e.clientX, e.clientY, html);
+    });
+    overlay.addEventListener("mouseleave", () => { hoverLine.setAttribute("opacity", 0); hideTooltip(); });
+    svgEl.appendChild(overlay);
+
+    container.appendChild(svgEl);
+
+    if (series.length > 1) {
+      const legend = el("div", { class: "legend" });
+      series.forEach(s => legend.appendChild(el("div", { class: "legend-item" }, [el("span", { class: "legend-swatch", style: `background:${s.color}` }), s.name])));
+      container.insertBefore(legend, svgEl);
+    }
+  }
+
+  /* ============================= TABLE ============================= */
+  function renderTable(container, columns, rows) {
+    // columns: [{key, label, num, fmt}]
+    const thead = el("thead", {}, [el("tr", {}, columns.map(c => el("th", { class: c.num ? "num" : "" }, [c.label])))]);
+    const tbody = el("tbody", {}, rows.map(r => el("tr", {}, columns.map(c => {
+      const raw = r[c.key];
+      const v = c.fmt ? c.fmt(raw, r) : (raw == null ? "—" : raw);
+      return el("td", { class: (c.num ? "num " : "") + (c.mutedCol ? "muted" : "") }, [String(v)]);
+    }))));
+    container.appendChild(el("div", { class: "table-wrap" }, [el("table", {}, [thead, tbody])]));
+  }
+
+  function sectionHead(parent, title, note) {
+    parent.appendChild(el("div", { class: "section-head" }, [el("h3", {}, [title]), note ? el("div", { class: "note" }, [note]) : null]));
+  }
+
+  /* ============================================================================
+     RENDER: RESUMEN
+     ============================================================================ */
+  function renderResumen() {
+    const p = $("#p-resumen");
+    const R = DATA.fissal.resumen;
+
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "Cohorte");
+    s1.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Pacientes CCR totales", num(R.pacientes_totales), null, "C18 / C19 / C20, 2016–2026"),
+      stat("Con tratamiento activo", num(R.pacientes_tratamiento), null, "Track A + FISSAL regular: cirugía/quimio/radio/endoscopía"),
+      stat("Fallecidos", num(R.mortalidad.fallecidos), null, `${pct(R.mortalidad.proporcion)} de la cohorte con tratamiento`, "accent-critical"),
+      stat("Tiempo en sistema", nf1.format(R.tiempo_anios.mediana), "años (mediana)", `media ${nf1.format(R.tiempo_anios.media)} años`),
+    ]));
+    p.appendChild(s1);
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Costo por paciente (Track A + FISSAL regular)", "Deflactado a soles de 2024");
+    const grid = el("div", { class: "card-grid" });
+
+    const cardTotal = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Costo total del episodio"])]);
+    cardTotal.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Mediana", soles(R.costo_deflactado.mediana), null, `nominal ${soles(R.costo_nominal.mediana)}`),
+      stat("Media", soles(R.costo_deflactado.media), null, `nominal ${soles(R.costo_nominal.media)}`),
+    ]));
+    grid.appendChild(cardTotal);
+
+    const cardMediana = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Desglose de costo — mediana"])]);
+    const dWrapMed = el("div", {});
+    hBarChart(dWrapMed, [
+      { label: "Tratamiento", value: R.desglose_mediana.tratamiento, sub: "cirugía/quimio/radio/endoscopía" },
+      { label: "Soporte", value: R.desglose_mediana.soporte, sub: "labs, imágenes, medicamentos" },
+      { label: "No atribuible", value: R.desglose_mediana.no_atribuible, sub: "vacunas, utensilios médicos" },
+    ], { color: "var(--c1)", formatValue: soles, tooltipLabel: "Costo mediano (2024)" });
+    cardMediana.appendChild(dWrapMed);
+    grid.appendChild(cardMediana);
+
+    const cardMedia = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Desglose de costo — media"])]);
+    const dWrapMedia = el("div", {});
+    hBarChart(dWrapMedia, [
+      { label: "Tratamiento", value: R.desglose_media.tratamiento, sub: "cirugía/quimio/radio/endoscopía" },
+      { label: "Soporte", value: R.desglose_media.soporte, sub: "labs, imágenes, medicamentos" },
+      { label: "No atribuible", value: R.desglose_media.no_atribuible, sub: "vacunas, utensilios médicos" },
+    ], { color: "var(--c2)", formatValue: soles, tooltipLabel: "Costo medio (2024)" });
+    cardMedia.appendChild(dWrapMedia);
+    grid.appendChild(cardMedia);
+    s2.appendChild(grid);
+    p.appendChild(s2);
+
+    const s3 = el("div", { class: "section" });
+    sectionHead(s3, "Hospitalización");
+    s3.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Días hospitalizado", num(R.hospitalizacion.dias_mediana), "días (mediana)"),
+      stat("N° hospitalizaciones", num(R.hospitalizacion.n_hosp_mediana), "episodios (mediana)"),
+      stat("Tiempo en sistema", num(R.tiempo_dias.mediana), "días (mediana)", `media ${num(R.tiempo_dias.media)} días`),
+    ]));
+    p.appendChild(s3);
+
+    const PF = DATA.fissal.perfil;
+    if (PF) {
+      const s4 = el("div", { class: "section" });
+      sectionHead(s4, "Perfil general de la cohorte", "Los " + num(R.pacientes_totales) + " pacientes CCR, sin filtrar por track");
+      const pgrid = el("div", { class: "card-grid" });
+
+      const cSexo = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Sexo"])]);
+      const bwSexo = el("div", {});
+      const sexoLabels = { F: "Mujer", M: "Hombre", U: "No registrado" };
+      hBarChart(bwSexo, Object.entries(PF.sexo).map(([k, v]) => ({ label: sexoLabels[k] || k, value: v })),
+        { colorFn: (d, i) => ["var(--c5)", "var(--c1)", "var(--muted)"][i], formatValue: num, tooltipLabel: "Pacientes" });
+      cSexo.appendChild(bwSexo);
+      pgrid.appendChild(cSexo);
+
+      const cLoc = el("div", { class: "card" }, [
+        el("div", { class: "card-title" }, ["Localización del tumor"]),
+      ]);
+      const bwLoc = el("div", {});
+      hBarChart(bwLoc, Object.entries(PF.localizacion).filter(([k]) => k !== "null").map(([k, v]) => ({ label: k, value: v })),
+        { color: "var(--c3)", formatValue: num, tooltipLabel: "Pacientes" });
+      cLoc.appendChild(bwLoc);
+      cLoc.appendChild(el("p", { class: "card-desc", style: "margin-top:10px" }, [
+        "La base fuente no trae ningún registro codificado C20 (recto); solo colon (C18) y unión rectosigmoidea (C19). Vale la pena confirmar con FISSAL si el recto se reporta por separado.",
+      ]));
+      pgrid.appendChild(cLoc);
+
+      const cEdad = el("div", { class: "card" }, [
+        el("div", { class: "card-title" }, ["Edad (al diagnóstico)"]),
+      ]);
+      const bwEdad = el("div", {});
+      hBarChart(bwEdad, PF.rango_edad.map(r => ({ label: r.rango, value: r.n })),
+        { color: "var(--c1)", formatValue: num, tooltipLabel: "Pacientes" });
+      cEdad.appendChild(bwEdad);
+      cEdad.appendChild(el("p", { class: "card-desc", style: "margin-top:10px" }, [`Mediana: ${nf0.format(PF.edad_mediana)} años`]));
+      pgrid.appendChild(cEdad);
+
+      s4.appendChild(pgrid);
+      p.appendChild(s4);
+    }
+  }
+
+  /* ============================================================================
+     RENDER: TIEMPOS
+     ============================================================================ */
+  function renderTiempos() {
+    const p = $("#p-tiempos");
+    const s = el("div", { class: "section" });
+    sectionHead(s, "Distancia entre hitos (días)", "Track A + FISSAL regular · n por intervalo");
+    renderTable(s, [
+      { key: "Intervalo", label: "Intervalo" },
+      { key: "n", label: "n", num: true, fmt: num },
+      { key: "Media", label: "Media", num: true, fmt: num },
+      { key: "Mediana", label: "Mediana", num: true, fmt: num },
+      { key: "P25", label: "P25", num: true, fmt: num },
+      { key: "P75", label: "P75", num: true, fmt: num },
+      { key: "P95", label: "P95", num: true, fmt: num },
+      { key: "Max", label: "Máx", num: true, fmt: num },
+    ], DATA.fissal.tiempos);
+    p.appendChild(s);
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Qué mide cada intervalo");
+    const list = el("div", { class: "card-grid" });
+    DATA.fissal.tiempos.forEach(t => {
+      list.appendChild(el("div", { class: "card" }, [
+        el("div", { class: "card-title" }, [t.Intervalo]),
+        el("p", { class: "card-desc", style: "margin:0" }, [t.Explicacion]),
+      ]));
+    });
+    s2.appendChild(list);
+    p.appendChild(s2);
+  }
+
+  /* ============================================================================
+     RENDER: HOSPITALIZACIÓN
+     ============================================================================ */
+  function renderHosp() {
+    const p = $("#p-hosp");
+    const H = DATA.fissal.hospitalizacion;
+    const resumenMap = {}; H.resumen.forEach(r => resumenMap[r.Metrica] = r);
+    const pacMap = {}; H.por_paciente.forEach(r => pacMap[r.Metrica] = r.Valor);
+
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "Episodios de hospitalización", "Deduplicados por episodio (mismo ingreso/alta), no por línea de consumo");
+    s1.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Pacientes hospitalizados", num(pacMap["n_pacientes"])),
+      stat("Episodios por paciente", nf1.format(pacMap["episodios_mediana"]), "mediana", `media ${nf1.format(pacMap["episodios_media"])}`),
+      stat("Estancia por episodio", nf1.format(pacMap["estancia_por_episodio_mediana"]), "días (mediana)", `media ${nf1.format(pacMap["estancia_por_episodio_media"])} días`),
+      stat("Costo por hospitalización", soles(pacMap["costo_hosp_mediana"]), null, `media ${soles(pacMap["costo_hosp_media"])}`),
+    ]));
+    p.appendChild(s1);
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Distribución de la estancia", "Solo episodios con estancia > 0 días");
+    const grid = el("div", { class: "card-grid" });
+
+    const c1 = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Duración de la estancia"])]);
+    const bw = el("div", {});
+    const distMax = Math.max(...H.distribucion.map(d => d.Proporcion));
+    hBarChart(bw, H.distribucion.map(d => ({ label: d.Rango_estancia, value: d.Episodios, sub: pct(d.Proporcion) })),
+      { formatValue: (v) => num(v), colorFn: (d, i) => `var(--seq-${300 + Math.round((i / (H.distribucion.length - 1)) * 4) * 100})`, tooltipLabel: "Episodios" });
+    c1.appendChild(bw);
+    grid.appendChild(c1);
+
+    const c2 = el("div", { class: "card" }, [
+      el("div", { class: "card-title" }, ["Estancia = 0 días"]),
+      el("div", { class: "stat-grid" }, [
+        stat("Del total de episodios", pct100((resumenMap["Episodios con estancia = 0 dias"].Valor / resumenMap["Total episodios con fecha ingreso/alta"].Valor) * 100, 1)),
+        stat("Episodios", num(resumenMap["Episodios con estancia = 0 dias"].Valor)),
+      ]),
+      el("p", { class: "card-desc", style: "margin-top:12px" }, [resumenMap["Episodios con estancia = 0 dias"].Nota]),
+    ]);
+    grid.appendChild(c2);
+    s2.appendChild(grid);
+    p.appendChild(s2);
+  }
+
+  /* ============================================================================
+     RENDER: CATEGORÍAS
+     ============================================================================ */
+  function renderCategorias() {
+    const p = $("#p-categorias");
+    const cats = DATA.fissal.categorias;
+    const top13 = cats.slice().sort((a, b) => b.costo_mediano - a.costo_mediano).slice(0, 13);
+
+    costVolumePair(p, "Costo por categoría de recurso (502)",
+      "Top 13 por costo mediano por paciente — comparar con el volumen para ver qué es caro-pero-raro vs. barato-pero-masivo",
+      top13.map(c => ({ label: c.categoria_recurso_502, cost: c.costo_mediano, vol: c.n_pacientes, sub: `${pct(c.pct_costo)} del costo total` })));
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Detalle por categoría", "Las 20 categorías, ordenadas por costo total de la cohorte");
+    renderTable(s2, [
+      { key: "Rank", label: "#", num: true },
+      { key: "categoria_recurso_502", label: "Categoría" },
+      { key: "n_pacientes", label: "Pacientes", num: true, fmt: num },
+      { key: "n_registros", label: "Registros", num: true, fmt: num },
+      { key: "costo_total", label: "Costo total", num: true, fmt: soles },
+      { key: "costo_mediano", label: "Costo mediano / pac.", num: true, fmt: soles },
+      { key: "pct_costo", label: "% costo", num: true, fmt: (v) => pct(v) },
+    ], cats);
+    p.appendChild(s2);
+
+    const subTop13 = DATA.fissal.subcategorias_top13;
+    costVolumePair(p, "Subcategorías principales",
+      "Top 13 subcategorías (de todas las categorías) por costo promedio por paciente — costo_total / n_pacientes, no hay mediana a este nivel de detalle",
+      subTop13.map(s => ({ label: s.Subcategoria, cost: s.costo_promedio, vol: s.n_pacientes, sub: s.Categoria })),
+      { costLabel: "Costo promedio por paciente" });
+
+    const s4 = el("div", { class: "section" });
+    sectionHead(s4, "Detalle por subcategoría", "Top 5 subcategorías dentro de cada categoría, por costo total");
+    renderTable(s4, [
+      { key: "Categoria", label: "Categoría" },
+      { key: "Subcategoria_rank", label: "#", num: true },
+      { key: "Subcategoria", label: "Subcategoría" },
+      { key: "n_pacientes", label: "Pacientes", num: true, fmt: num },
+      { key: "costo_total", label: "Costo total", num: true, fmt: soles },
+      { key: "costo_promedio", label: "Costo prom. / pac.", num: true, fmt: soles },
+      { key: "pct_del_costo_categoria", label: "% de la categoría", num: true, fmt: (v) => pct(v) },
+    ], DATA.fissal.subcategorias);
+    p.appendChild(s4);
+  }
+
+  /* ============================================================================
+     RENDER: SEVERIDAD
+     ============================================================================ */
+  function renderSeveridad() {
+    const p = $("#p-severidad");
+    const sev = DATA.fissal.severidad;
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "Costo y mortalidad por gravedad al ingreso y localización");
+    const grid = el("div", { class: "card-grid" });
+    sev.forEach(row => {
+      const critico = row.Tipo_ingreso.includes("Grave");
+      grid.appendChild(el("div", { class: "card" }, [
+        el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;" }, [
+          el("div", { class: "card-title", style: "margin-bottom:0" }, [`${row.LOCALIZACION} · ${num(row.n_pacientes)} pac.`]),
+          el("span", { class: "pill " + (critico ? "critical" : "good") }, [row.Tipo_ingreso]),
+        ]),
+        el("div", { class: "stat-grid" }, [
+          stat("Costo mediano", soles(row.costo_mediano_deflactado), null, `media ${soles(row.costo_medio_deflactado)}`),
+          stat("Tiempo en sistema", num(row.tiempo_mediano), "días (mediana)"),
+          stat("Mortalidad", pct(row.pct_fallecidos), null, null, "accent-critical"),
+          stat("Días hosp.", num(row.dias_hosp_mediano), "mediana"),
+        ]),
+      ]));
+    });
+    s1.appendChild(grid);
+    p.appendChild(s1);
+  }
+
+  /* ============================================================================
+     RENDER: FALLECIDOS
+     ============================================================================ */
+  function renderFallecidos() {
+    const p = $("#p-fallecidos");
+    const f = DATA.fissal.fallecidos;
+
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "Tiempo en FISSAL hasta el fallecimiento", "Desde el primer registro hasta la fecha de cierre");
+    const wrap = el("div", {});
+    hBarChart(wrap, f.map(r => ({ label: r.Tiempo_hasta_fallecer_en_FISSAL, value: r.n_pacientes, sub: `${pct(r.proporcion)} de los fallecidos` })),
+      { color: "var(--critical)", formatValue: num, tooltipLabel: "Pacientes" });
+    s1.appendChild(wrap);
+    p.appendChild(s1);
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Costo y hospitalización por tramo");
+    renderTable(s2, [
+      { key: "Tiempo_hasta_fallecer_en_FISSAL", label: "Tramo" },
+      { key: "n_pacientes", label: "Pacientes", num: true, fmt: num },
+      { key: "proporcion", label: "% del total", num: true, fmt: (v) => pct(v) },
+      { key: "costo_mediano_deflactado", label: "Costo mediano (2024)", num: true, fmt: soles },
+      { key: "dias_hosp_mediano", label: "Días hosp. (mediana)", num: true, fmt: num },
+    ], f);
+    p.appendChild(s2);
+  }
+
+  /* ============================================================================
+     RENDER: EVOLUCIÓN ANUAL
+     ============================================================================ */
+  function renderEvolucion() {
+    const p = $("#p-evolucion");
+    const ev = DATA.fissal.evolucion;
+
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "Gasto total de la cohorte por año", "Nominal vs. deflactado a soles de 2024");
+    const chart = el("div", { class: "card" });
+    const inner = el("div", {});
+    lineChart(inner, [
+      { name: "Nominal", color: "var(--c2)", points: ev.map(r => ({ x: r["Año"], y: r.gasto_total_nominal })) },
+      { name: "Deflactado (2024)", color: "var(--c1)", points: ev.map(r => ({ x: r["Año"], y: r.gasto_total_deflactado })) },
+    ], { formatY: (v) => "S/ " + nf0.format(v / 1e6) + "M" });
+    chart.appendChild(inner);
+    s1.appendChild(chart);
+    if (DATA.fissal.evolucion_nota) {
+      s1.appendChild(el("p", { class: "card-desc", style: "margin-top:10px" }, ["ⓘ " + DATA.fissal.evolucion_nota]));
+    }
+    p.appendChild(s1);
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Detalle por año");
+    renderTable(s2, [
+      { key: "Año", label: "Año" },
+      { key: "Factor_IPC", label: "Factor IPC", num: true, fmt: (v) => v.toFixed(2) },
+      { key: "pacientes_con_gasto", label: "Pacientes", num: true, fmt: num },
+      { key: "gasto_total_nominal", label: "Gasto total nominal", num: true, fmt: soles },
+      { key: "gasto_total_deflactado", label: "Gasto total 2024", num: true, fmt: soles },
+      { key: "gasto_mediano_deflactado", label: "Gasto mediano 2024", num: true, fmt: soles },
+    ], ev);
+    p.appendChild(s2);
+  }
+
+  /* ============================================================================
+     RENDER: OTROS MALES
+     ============================================================================ */
+  function renderOtros() {
+    const p = $("#p-otros");
+    const om = DATA.fissal.otros_males;
+    const m = {}; om.metricas.forEach(r => m[r.Metrica] = r.Valor);
+
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "Composición del gasto de la cohorte CCR", "Sobre el costo total de todas las atenciones de estos pacientes, no solo CCR");
+    const grid = el("div", { class: "card-grid" });
+    const c1 = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Participación por tipo de diagnóstico"])]);
+    const bw = el("div", {});
+    hBarChart(bw, [
+      { label: "Cáncer colorrectal (CCR)", value: m["% que es CCR (C18/19/20)"] },
+      { label: "Otro cáncer", value: m["% que es OTRO CANCER (C, no CCR)"], sub: "Ej: estómago, mama, próstata" },
+      { label: "No cáncer", value: m["% que es NO CANCER"], sub: "Ej: renal, diabetes, respiratorias" },
+    ], { formatValue: (v) => pct(v), colorFn: (d, i) => ["var(--c1)", "var(--c2)", "var(--c3)"][i], tooltipLabel: "% del costo" });
+    c1.appendChild(bw);
+    grid.appendChild(c1);
+
+    const c2 = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Magnitud"])]);
+    c2.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Costo total cohorte", soles(m["Costo total cohorte (millones)"] * 1e6)),
+      stat("Costo en otros cánceres", soles(m["Costo total de otros canceres"]), null, `${num(m["Pacientes CON gasto en otro cancer"])} pacientes`),
+      stat("Costo no-cáncer", soles(m["Costo total no-cancer"]), null, `${num(m["Pacientes CON gasto no-cancer"])} pacientes`),
+    ]));
+    grid.appendChild(c2);
+    s1.appendChild(grid);
+    p.appendChild(s1);
+
+    costVolumePair(p, "Diagnósticos no-CCR más costosos por paciente",
+      "Ordenado por costo por paciente (costo_total / n_pac), no por costo total — así se ve qué es caro-pero-raro (ej. leucemia) vs. barato-pero-masivo (ej. diabetes)",
+      om.top_cie10.map(d => ({ label: d.descripcion_corta, cost: d.costo_x_paciente, vol: d.n_pac, sub: d.Codigo_CIE10 })));
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Detalle de los 20 diagnósticos", "Ordenado igual que los gráficos: costo por paciente descendente");
+    renderTable(s2, [
+      { key: "Codigo_CIE10", label: "CIE-10" },
+      { key: "descripcion_corta", label: "Diagnóstico" },
+      { key: "n_pac", label: "Pacientes", num: true, fmt: num },
+      { key: "costo_total", label: "Costo total", num: true, fmt: soles },
+      { key: "costo_x_paciente", label: "Costo / paciente", num: true, fmt: soles },
+      { key: "descripcion", label: "Descripción CIE-10", mutedCol: true },
+    ], om.top_cie10);
+    p.appendChild(s2);
+  }
+
+  /* ============================================================================
+     RENDER: ESSALUD
+     ============================================================================ */
+  function renderEsSalud() {
+    const p = $("#p-essalud");
+    const E = DATA.essalud.gcop;
+
+    const s0 = el("div", { class: "section" });
+    s0.appendChild(el("div", { class: "callout" }, [
+      el("b", {}, ["Dos archivos, dos usos distintos. "]),
+      "GCOP trae DNI parcialmente enmascarado + edad exacta → se pudo construir un ID compuesto probabilístico para reconstruir trayectorias. GCPS (",
+      el("b", {}, [num(DATA.essalud.gcps.n_registros) + " registros"]),
+      `, ${DATA.essalud.gcps.rango_fechas}) no trae ningún dato de paciente ni edad — solo sirve para conteos agregados por servicio/CIE10, no aparece en este panel a nivel de paciente.`,
+    ]));
+    p.appendChild(s0);
+
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "ID compuesto (DNI enmascarado + sexo + fecha de nacimiento implícita)", "Sobre " + num(E.n_registros) + " registros de consulta 2020–2026");
+    s1.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Pacientes candidatos", num(E.n_pacientes_candidatos)),
+      stat("Con 2+ atenciones", num(E.cobertura_2mas), null, pct100((E.cobertura_2mas / E.n_pacientes_candidatos) * 100) + " del total"),
+      stat("Con 10+ atenciones", num(E.cobertura_10mas)),
+      stat("Validación CIE-10", pct100(E.validacion_cie10_consistente_pct), null, "un solo código CIE-10 dentro del mismo ID"),
+    ]));
+    p.appendChild(s1);
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Costo proyectado", "Estimado aplicando los patrones de costo de FISSAL (Track × localización × intensidad) — no es un costo medido");
+    const grid = el("div", { class: "card-grid" });
+    const c1 = el("div", { class: "card" }, [
+      el("div", { class: "card-title" }, ["Costo proyectado total"]),
+      el("div", { class: "stat-grid" }, [
+        stat("Total cohorte (2024)", soles(E.costo_proyectado.total)),
+        stat("Mediana / paciente", soles(E.costo_proyectado.mediana)),
+        stat("Media / paciente", soles(E.costo_proyectado.media)),
+      ]),
+    ]);
+    grid.appendChild(c1);
+
+    const c2 = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Por track"])]);
+    const bw = el("div", {});
+    hBarChart(bw, [
+      { label: "Track A (tratamiento)", value: E.track.A_COMPLETO.n, sub: pct100(E.track.A_COMPLETO.pct) + " del total" },
+      { label: "Track B (consultas)", value: E.track.B_PARCIAL.n, sub: pct100(E.track.B_PARCIAL.pct) + " del total" },
+    ], { colorFn: (d, i) => ["var(--c1)", "var(--c4)"][i], formatValue: num, tooltipLabel: "Pacientes" });
+    c2.appendChild(bw);
+    grid.appendChild(c2);
+    s2.appendChild(grid);
+    p.appendChild(s2);
+
+    const s2b = el("div", { class: "section" });
+    sectionHead(s2b, "FISSAL (real) vs. EsSalud (proyectado)", "Costo por paciente, soles 2024 — misma escala, cohortes distintas");
+    const cComp = el("div", { class: "card" });
+    const wComp = el("div", {});
+    const FR = DATA.fissal.resumen.costo_deflactado;
+    hBarChart(wComp, [
+      { label: "FISSAL — mediana (real)", value: FR.mediana, sub: "Track A + FISSAL regular, n=" + num(DATA.fissal.resumen.pacientes_tratamiento) },
+      { label: "EsSalud — mediana (proyectado)", value: E.costo_proyectado.mediana, sub: "GCOP, n=" + num(E.n_pacientes_candidatos) },
+      { label: "FISSAL — media (real)", value: FR.media, sub: "Track A + FISSAL regular" },
+      { label: "EsSalud — media (proyectado)", value: E.costo_proyectado.media, sub: "GCOP" },
+    ], { colorFn: (d, i) => ["var(--c1)", "var(--c4)", "var(--c1)", "var(--c4)"][i], formatValue: soles, tooltipLabel: "Costo / paciente" });
+    cComp.appendChild(wComp);
+    cComp.appendChild(el("p", { class: "card-desc", style: "margin-top:12px" }, [
+      "El costo proyectado de EsSalud sale de aplicarle a esta cohorte los patrones de costo de FISSAL — por construcción no puede " +
+      "\"descubrir\" que EsSalud gasta distinto, solo traduce su volumen de atenciones a soles usando la vara de FISSAL. Útil para " +
+      "dimensionar la cohorte, no para concluir que EsSalud es más barato o más caro que FISSAL.",
+    ]));
+    s2b.appendChild(cComp);
+    p.appendChild(s2b);
+
+    const s3 = el("div", { class: "section" });
+    sectionHead(s3, "Especialidades más frecuentes (GCOP)");
+    const wrap = el("div", {});
+    hBarChart(wrap, E.servicios_top.map(s => ({ label: s.servicio, value: s.n })), { color: "var(--c3)", formatValue: num, tooltipLabel: "Registros" });
+    s3.appendChild(wrap);
+    p.appendChild(s3);
+  }
+
+  /* ============================================================================
+     RENDER: SIS
+     ============================================================================ */
+  function renderSIS() {
+    const p = $("#p-sis");
+    const S = DATA.sis;
+
+    const s0 = el("div", { class: "section" });
+    s0.appendChild(el("div", { class: "callout critical" }, [
+      el("b", {}, ["100% de estos pacientes fue atendido en Lima. "]),
+      "No es representativo a nivel nacional: sirve para describir un bolsón puntual no capturado por FISSAL, no para argumentar cobertura nacional. Vale la pena confirmar con SIS si es un límite real de la base o un filtro aplicado al extraerla.",
+    ]));
+    p.appendChild(s0);
+
+    const s1 = el("div", { class: "section" });
+    sectionHead(s1, "Cohorte SIS (financiamiento no-FISSAL)");
+    s1.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Pacientes", num(S.atenciones.pacientes)),
+      stat("Atenciones", num(S.atenciones.n)),
+      stat("Atenciones / paciente", nf1.format(S.atenciones.atenciones_por_paciente)),
+      stat("Con 1 sola atención", pct100(S.profundidad.una_atencion_pct), null, "sin trayectoria reconstruible"),
+    ]));
+    p.appendChild(s1);
+
+    const s2 = el("div", { class: "section" });
+    sectionHead(s2, "Perfil");
+    const grid = el("div", { class: "card-grid" });
+
+    const c1 = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Sexo"])]);
+    const bw1 = el("div", {});
+    hBarChart(bw1, Object.entries(S.sexo).map(([k, v]) => ({ label: k, value: v })), { colorFn: (d, i) => ["var(--c5)", "var(--c1)"][i], formatValue: num, tooltipLabel: "Pacientes" });
+    c1.appendChild(bw1);
+    grid.appendChild(c1);
+
+    const c2 = el("div", { class: "card" }, [el("div", { class: "card-title" }, ["Localización"])]);
+    const bw2 = el("div", {});
+    hBarChart(bw2, Object.entries(S.localizacion).map(([k, v]) => ({ label: k, value: v })), { color: "var(--c1)", formatValue: num, tooltipLabel: "Pacientes" });
+    c2.appendChild(bw2);
+    grid.appendChild(c2);
+    s2.appendChild(grid);
+    p.appendChild(s2);
+
+    const s3 = el("div", { class: "section" });
+    sectionHead(s3, "Tendencia anual de atenciones");
+    const c3 = el("div", { class: "card" });
+    vBarChart(c3, S.tendencia_anual.map(r => ({ label: String(r.anio), value: r.n })), { color: "var(--c1)", formatValue: num, tooltipLabel: "Atenciones" });
+    s3.appendChild(c3);
+    p.appendChild(s3);
+
+    const s4 = el("div", { class: "section" });
+    sectionHead(s4, "Consumos (por qué no sirve como medida de costo)");
+    s4.appendChild(el("div", { class: "stat-grid" }, [
+      stat("Costo total capturado", soles(S.consumos.costo_total)),
+      stat("Costo por atención", solesD(S.consumos.costo_promedio_atencion), null, "vs. miles de soles en FISSAL"),
+      stat("Líneas de consumo", num(S.consumos.n_lineas)),
+      stat("Pacientes con 3+ atenciones", num(S.profundidad.tres_mas), null, "único subgrupo con algo de trayectoria"),
+    ]));
+    p.appendChild(s4);
+  }
+
+  /* ============================================================================
+     NAV / ROUTING
+     ============================================================================ */
+  const TITLES = {
+    "p-resumen": ["Resumen", "Cohorte de pacientes con cáncer colorrectal (CIE-10 C18/C19/C20) financiados por FISSAL, 2016–2026."],
+    "p-tiempos": ["Tiempos entre hitos", "Cuánto demora cada etapa del recorrido del paciente dentro de FISSAL."],
+    "p-hosp": ["Hospitalización", "Episodios deduplicados por ingreso/alta — no por línea de consumo facturada."],
+    "p-categorias": ["Costo por categoría de recurso", "Clasificación 502: a qué se destina el gasto de la cohorte."],
+    "p-severidad": ["Severidad al ingreso", "Costo y mortalidad según gravedad de la primera atención y localización del tumor."],
+    "p-fallecidos": ["Fallecidos", "Cuánto tiempo pasan en FISSAL los pacientes que fallecen, y qué les cuesta al sistema."],
+    "p-evolucion": ["Evolución anual", "Gasto total y por paciente, 2018–2026, nominal y deflactado."],
+    "p-otros": ["Otros males", "Cuánto del gasto de esta cohorte es en realidad por condiciones distintas al CCR."],
+    "p-essalud": ["EsSalud (SAIP)", "Reconstrucción de trayectorias y costo proyectado a partir de datos sin identificador de paciente."],
+    "p-sis": ["SIS", "Pacientes CCR financiados directamente por SIS, fuera del radar de FISSAL."],
+  };
+
+  const renderers = {
+    "p-resumen": renderResumen, "p-tiempos": renderTiempos, "p-hosp": renderHosp,
+    "p-categorias": renderCategorias, "p-severidad": renderSeveridad, "p-fallecidos": renderFallecidos,
+    "p-evolucion": renderEvolucion, "p-otros": renderOtros, "p-essalud": renderEsSalud, "p-sis": renderSIS,
+  };
+  const rendered = {};
+
+  function activate(id) {
+    $$(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.target === id));
+    $$(".panel").forEach(pn => pn.classList.toggle("active", pn.id === id));
+    const [title, sub] = TITLES[id];
+    $("#topbar-title").textContent = title;
+    $("#topbar-sub").textContent = sub;
+    if (!rendered[id]) { renderers[id](); rendered[id] = true; }
+    window.scrollTo(0, 0);
+    $(".main").scrollTo && $(".main").scrollTo(0, 0);
+    try { history.replaceState(null, "", "#" + id.replace("p-", "")); } catch (e) { /* noop en origenes opacos */ }
+  }
+
+  $$(".nav-btn").forEach(btn => btn.addEventListener("click", () => activate(btn.dataset.target)));
+
+  /* ============================================================================
+     THEME
+     ============================================================================ */
+  // localStorage puede estar bloqueado (data: URLs, algunos sandboxes, modo
+  // privado) -- degradar con gracia en vez de tumbar el resto del script.
+  const safeStorage = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* noop */ } },
+  };
+  function applyTheme(mode) {
+    if (mode === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", mode);
+    safeStorage.set("ccr-theme", mode);
+    $$(".theme-toggle button").forEach(b => b.classList.toggle("active", b.dataset.themeChoice === mode));
+  }
+  $$(".theme-toggle button").forEach(b => b.addEventListener("click", () => applyTheme(b.dataset.themeChoice)));
+  applyTheme(safeStorage.get("ccr-theme") || "system");
+
+  /* ============================================================================
+     INIT
+     ============================================================================ */
+  $("#nav-foot").textContent = "Generado " + (DATA.meta && DATA.meta.generado ? DATA.meta.generado : "");
+  const initial = (location.hash || "").replace("#", "");
+  const initialId = initial && TITLES["p-" + initial] ? "p-" + initial : "p-resumen";
+  activate(initialId);
+})();
+</script>
+</body>
+</html>

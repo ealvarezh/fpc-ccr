@@ -4,7 +4,7 @@ import numpy as np
 import gc
 from pathlib import Path
 
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+# sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 pd.set_option('display.max_columns', None)
 
 SILVER = Path(r"C:\Users\eah\apoyoconsultoria.com\File Server - Analytics\7 Datos\Datos abiertos\fissal\01_silver")
