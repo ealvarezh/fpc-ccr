@@ -134,6 +134,45 @@ fact_costo_anual = fact_costo_anual[fact_costo_anual["costo_nominal"] > 0]  # al
 fact_costo_anual.to_parquet(OUTPUT_DIR / "fact_costo_anual.parquet", index=False)
 print(f"   fact_costo_anual.parquet  ({len(fact_costo_anual):,} filas)")
 
+# Melt de las 6 columnas de "tiempos entre hitos" a formato largo (paciente x
+# intervalo x dias) -- para que en Power BI cada intervalo se pueda agregar
+# con una medida generica (MEDIANX/AVERAGEX/PERCENTILEX.INC) en vez de tener
+# que escribir un SWITCH distinto por columna.
+print("   Reestructurando tiempos entre hitos a formato largo...")
+INTERVALOS = {
+    "Ingreso a Intervencion": "DIAS_INGRESO_A_INTERVENCION",
+    "Intervencion a Cierre": "DIAS_INTERVENCION_A_CIERRE",
+    "Trayectoria total": "DIAS_TRAYECTORIA_TOTAL",
+    "Tiempo en sistema": "TIEMPO_EN_SISTEMA_DIAS",
+    "Hospitalizacion total (dias)": "DIAS_HOSPITALIZACION_TOTAL",
+    "Numero de hospitalizaciones": "N_HOSPITALIZACIONES",
+}
+DESCRIPCIONES_INTERVALO = {
+    "Ingreso a Intervencion": "Dias desde la primera atencion en FISSAL hasta que inicia el primer tratamiento oncologico (cirugia/quimio/radio). Mide el tiempo de espera.",
+    "Intervencion a Cierre": "Dias desde que termina el ultimo tratamiento hasta el cierre (fallecimiento o ultima atencion). Mide el seguimiento post-tratamiento.",
+    "Trayectoria total": "Dias desde la primera atencion hasta el cierre. Es la suma de los dos anteriores mas la duracion del tratamiento.",
+    "Tiempo en sistema": "Dias entre la primera y ultima atencion registrada en FISSAL. Si el paciente sigue activo, es hasta su ultima visita.",
+    "Hospitalizacion total (dias)": "Suma de dias de TODAS las hospitalizaciones del paciente. Si es 0, nunca estuvo hospitalizado.",
+    "Numero de hospitalizaciones": "Cantidad de episodios de hospitalizacion distintos. Si es 0, nunca fue hospitalizado.",
+}
+piezas_t = []
+for intervalo, col in INTERVALOS.items():
+    sub = h[["Codigo_identificacion_paciente", col]].rename(columns={col: "dias"}).copy()
+    sub["intervalo"] = intervalo
+    sub = sub.dropna(subset=["dias"])
+    sub = sub[sub["dias"] >= 0]  # mismo filtro que 02_reporte_excel.py: descartar negativos
+    piezas_t.append(sub[["Codigo_identificacion_paciente", "intervalo", "dias"]])
+fact_tiempos_hitos = pd.concat(piezas_t, ignore_index=True)
+fact_tiempos_hitos.to_parquet(OUTPUT_DIR / "fact_tiempos_hitos.parquet", index=False)
+print(f"   fact_tiempos_hitos.parquet  ({len(fact_tiempos_hitos):,} filas)")
+
+dim_intervalo = pd.DataFrame([
+    {"intervalo": k, "explicacion": v, "orden": i + 1}
+    for i, (k, v) in enumerate(DESCRIPCIONES_INTERVALO.items())
+])
+dim_intervalo.to_parquet(OUTPUT_DIR / "dim_intervalo.parquet", index=False)
+print(f"   dim_intervalo.parquet  ({len(dim_intervalo)} filas)")
+
 # =====================================================================
 # 3. EXTRACCION SQL DETALLADA (para categoria/subcategoria, otros diagnosticos, hospitalizacion)
 # =====================================================================
@@ -184,6 +223,38 @@ otros["tipo_diagnostico"] = np.where(otros["Codigo_CIE10"].str.match(r"^C", na=F
 fact_otros = otros.groupby(
     ["Codigo_identificacion_paciente", "Codigo_CIE10", "Descripcion_CIE10", "tipo_diagnostico"]
 ).agg(costo_nominal=("MONTO_NETO", "sum"), n_registros=("MONTO_NETO", "size")).reset_index()
+
+# Nombre corto por CIE10 (mismos ~20 curados a mano que en el dashboard, con
+# un fallback automatico -que simplifica "TUMOR MALIGNO DE(L)..." a "Cancer
+# de..."- para el resto, asi ningun codigo se queda con el nombre largo).
+DESCRIPCION_CORTA = {
+    "C920": "Leucemia mieloide aguda", "C833": "Linfoma no Hodgkin celulas grandes",
+    "N180": "Insuf. renal terminal", "N185": "Enf. renal cronica etapa 5",
+    "C859": "Linfoma no Hodgkin", "C61X": "Cancer de prostata",
+    "C819": "Enfermedad de Hodgkin", "C851": "Linfoma de celulas B",
+    "C169": "Cancer de estomago", "C509": "Cancer de mama",
+    "C539": "Cancer de cuello uterino", "N189": "Insuf. renal cronica",
+    "C531": "Cancer de exocervix", "C839": "Linfoma no Hodgkin difuso",
+    "C504": "Cancer de mama (cuadrante sup. ext.)", "C163": "Cancer gastrico (antro pilorico)",
+    "C162": "Cancer de cuerpo gastrico", "C530": "Cancer de endocervix",
+    "C160": "Cancer de cardias", "E119": "Diabetes tipo 2",
+}
+
+
+def descripcion_corta(codigo, descripcion):
+    if codigo in DESCRIPCION_CORTA:
+        return DESCRIPCION_CORTA[codigo]
+    d = str(descripcion).strip()
+    for pat in ["TUMOR MALIGNO DE LA ", "TUMOR MALIGNO DEL ", "TUMOR MALIGNO DE ", "TUMOR MALIGNO "]:
+        if d.startswith(pat):
+            return "Cancer de " + d[len(pat):].capitalize()
+    d = d.capitalize()
+    return d if len(d) <= 42 else d[:39] + "..."
+
+
+fact_otros["descripcion_corta"] = [
+    descripcion_corta(c, d) for c, d in zip(fact_otros["Codigo_CIE10"], fact_otros["Descripcion_CIE10"])
+]
 fact_otros.to_parquet(OUTPUT_DIR / "fact_costo_otros_diagnosticos.parquet", index=False)
 print(f"3b. fact_costo_otros_diagnosticos.parquet  ({len(fact_otros):,} filas)")
 
@@ -220,12 +291,26 @@ print(f"   fact_essalud_gcop.parquet  ({len(fact_essalud):,} filas)")
 print("   NOTA: COSTO_PROYECTADO_2024 ya viene resuelto (match contra benchmark FISSAL,")
 print("   ver complementarios/essalud/03_costo_proyectado.py) -- no requiere DAX adicional.")
 
+# Detalle a nivel de registro (no de paciente) -- necesario para "Especialidades
+# mas frecuentes" y para la validacion de consistencia de CIE10 del ID compuesto,
+# que fact_essalud_gcop (1 fila por paciente) no puede replicar.
+g_detalle = pd.read_parquet(ESSALUD_DIR / "essalud_gcop_con_id.parquet")
+fact_essalud_detalle = g_detalle[[
+    "ID_ESSALUD_GCOP", "SERVICIO", "DIAGNOSTICO3", "FECHA_ATENCION", "RESULT_ATENCION", "TIPO_CONSULTA",
+]].copy()
+fact_essalud_detalle.to_parquet(OUTPUT_DIR / "fact_essalud_gcop_detalle.parquet", index=False)
+print(f"   fact_essalud_gcop_detalle.parquet  ({len(fact_essalud_detalle):,} filas)")
+
 # =====================================================================
 # 5. SIS
 # =====================================================================
 print("\n5. Copiando SIS...")
 sis_at = pd.read_parquet(SIS_DIR / "sis_atenciones.parquet")
 sis_con = pd.read_parquet(SIS_DIR / "sis_consumos.parquet")
+# FECHA_ATENCION llega como texto "dd/mm/aa" (ej. "16/12/24") -- convertir a
+# fecha real antes de guardar, si no Power BI puede interpretarla ambiguo
+# (dd/mm vs mm/dd segun la configuracion regional) o dejarla como texto.
+sis_at["FECHA_ATENCION"] = pd.to_datetime(sis_at["FECHA_ATENCION"], format="%d/%m/%y", errors="coerce")
 sis_at.to_parquet(OUTPUT_DIR / "fact_sis_atenciones.parquet", index=False)
 sis_con.to_parquet(OUTPUT_DIR / "fact_sis_consumos.parquet", index=False)
 print(f"   fact_sis_atenciones.parquet  ({len(sis_at):,} filas)")
